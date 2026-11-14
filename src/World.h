@@ -79,7 +79,6 @@ CC_NOINLINE void World_SetDimensions(int width, int height, int length);
 void World_OutOfMemory(void);
 
 #ifdef EXTENDED_BLOCKS
-#ifdef EXTENDED_BLOCKS
 /* Sets World.Blocks2 and updates internal state for more than 256 blocks. */
 void World_SetMapUpper(BlockRaw* blocks);
 #define World_GetRawBlock(idx) ((World.Blocks[idx] | (World.Blocks2[idx] << 8)) & World.IDMask)
@@ -87,8 +86,7 @@ void World_SetMapUpper(BlockRaw* blocks);
 #define World_GetRawBlock(idx) World.Blocks[idx]
 #endif
 
-/* Gets the block at the given coordinates. Finite worlds retain their existing
-   array-backed behaviour; infinite worlds resolve blocks through chunk storage. */
+/* Gets a block from either the finite array or the infinite chunk store. */
 BlockID World_GetBlock(int x, int y, int z);
 
 /* If Y is above the map, returns BLOCK_AIR. */
