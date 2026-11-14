@@ -388,6 +388,7 @@ static IVec3 lastPos;
 
 static void InitWeatherHeightmap(void) {
 	int i;
+	if (World.Infinite) { Weather_Heightmap = NULL; return; }
 	Weather_Heightmap = (cc_int16*)Mem_Alloc(World.Width * World.Length, 2, "weather heightmap");
 	
 	for (i = 0; i < World.Width * World.Length; i++) {
@@ -408,6 +409,13 @@ for (y = maxY; y >= 0; y--, i -= World.OneY) {\
 static int CalcRainHeightAt(int x, int maxY, int z, int hIndex) {
 	int i = World_Pack(x, maxY, z), y;
 	cc_uint8 draw;
+	if (World.Infinite) {
+		for (y = maxY; y >= 0; y--) {
+			draw = Blocks.Draw[World_GetBlock(x, y, z)];
+			if (!(draw == DRAW_GAS || draw == DRAW_SPRITE)) return y;
+		}
+		return -1;
+	}
 
 #ifndef EXTENDED_BLOCKS
 	RainCalcBody(World.Blocks[i]);
@@ -427,15 +435,18 @@ static float GetRainHeight(int x, int z) {
 	int hIndex, height;
 	int y;
 	if (!World_ContainsXZ(x, z)) return (float)Env.EdgeHeight;
-
-	hIndex = Weather_Pack(x, z);
-	height = Weather_Heightmap[hIndex];
-
-	y = height == Int16_MaxValue ? CalcRainHeightAt(x, World.MaxY, z, hIndex) : height;
+	if (World.Infinite) {
+		y = CalcRainHeightAt(x, World.MaxY, z, -1);
+	} else {
+		hIndex = Weather_Pack(x, z);
+		height = Weather_Heightmap[hIndex];
+		y = height == Int16_MaxValue ? CalcRainHeightAt(x, World.MaxY, z, hIndex) : height;
+	}
 	return y == -1 ? 0 : y + Blocks.MaxBB[World_GetBlock(x, y, z)].y;
 }
 
 void EnvRenderer_OnBlockChanged(int x, int y, int z, BlockID oldBlock, BlockID newBlock) {
+	if (World.Infinite) return;
 	cc_bool didBlock = !(Blocks.Draw[oldBlock] == DRAW_GAS || Blocks.Draw[oldBlock] == DRAW_SPRITE);
 	cc_bool nowBlock = !(Blocks.Draw[newBlock] == DRAW_GAS || Blocks.Draw[newBlock] == DRAW_SPRITE);
 	int hIndex, height;

@@ -382,11 +382,12 @@ static void Heightmap_FinishCoverage(int x1, int z1, int xCount, int zCount) {
 
 
 void ClassicLighting_LightHint(int startX, int startY, int startZ) {
-	if (World.Infinite) return;
-	int x1 = max(startX, 0), x2 = min(World.Width,  startX + EXTCHUNK_SIZE);
-	int z1 = max(startZ, 0), z2 = min(World.Length, startZ + EXTCHUNK_SIZE);
-	int xCount = x2 - x1, zCount = z2 - z1;
+	int x1, x2, z1, z2, xCount, zCount;
 	int skip[EXTCHUNK_SIZE * EXTCHUNK_SIZE];
+	if (World.Infinite) return;
+	x1 = max(startX, 0); x2 = min(World.Width, startX + EXTCHUNK_SIZE);
+	z1 = max(startZ, 0); z2 = min(World.Length, startZ + EXTCHUNK_SIZE);
+	xCount = x2 - x1; zCount = z2 - z1;
 
 	int elemsLeft = Heightmap_InitialCoverage(x1, z1, xCount, zCount, skip);
 	if (!Heightmap_CalculateCoverage(x1, z1, xCount, zCount, elemsLeft, skip)) {
