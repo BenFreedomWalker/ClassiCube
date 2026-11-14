@@ -126,6 +126,8 @@ struct InfiniteWorld_Chunk {
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_Chunks;
 static int InfiniteWorld_ChunksCount, InfiniteWorld_ChunksCapacity;
+static cc_uint32* InfiniteWorld_ChunkSlots;
+static cc_uint32 InfiniteWorld_ChunkSlotsCapacity;
 static int InfiniteWorld_Seed;
 static cc_bool InfiniteWorld_Active;
 
@@ -138,6 +140,9 @@ void InfiniteWorld_Reset(void) {
 #endif
 	}
 	Mem_Free(InfiniteWorld_Chunks);
+	Mem_Free(InfiniteWorld_ChunkSlots);
+	InfiniteWorld_ChunkSlots = NULL;
+	InfiniteWorld_ChunkSlotsCapacity = 0;
 	InfiniteWorld_Chunks = NULL;
 	InfiniteWorld_ChunksCount = 0;
 	InfiniteWorld_ChunksCapacity = 0;
@@ -155,13 +160,57 @@ int InfiniteWorld_ChunkCount(void) {
 	return InfiniteWorld_ChunksCount;
 }
 
-static struct InfiniteWorld_Chunk* InfiniteWorld_FindChunk(int chunkX, int chunkZ) {
-	int i;
-	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+static cc_uint32 InfiniteWorld_HashChunk(int x, int z) {
+	cc_uint32 hash = (cc_uint32)x * 0x9E3779B1u ^ (cc_uint32)z * 0x85EBCA77u;
+	hash ^= hash >> 16;
+	hash *= 0x7FEB352Du;
+	hash ^= hash >> 15;
+	return hash;
+}
+
+static cc_bool InfiniteWorld_RebuildChunkSlots(cc_uint32 capacity) {
+	cc_uint32* slots;
+	cc_uint32 i, index;
+	if (capacity < 32 || (capacity & (capacity - 1))) return false;
+	slots = (cc_uint32*)Mem_TryAllocCleared(capacity, sizeof(cc_uint32));
+	if (!slots) return false;
+
+	for (i = 0; i < (cc_uint32)InfiniteWorld_ChunksCount; i++) {
 		struct InfiniteWorld_Chunk* chunk = &InfiniteWorld_Chunks[i];
+		index = InfiniteWorld_HashChunk(chunk->x, chunk->z) & (capacity - 1);
+		while (slots[index]) index = (index + 1) & (capacity - 1);
+		slots[index] = i + 1;
+	}
+	Mem_Free(InfiniteWorld_ChunkSlots);
+	InfiniteWorld_ChunkSlots = slots;
+	InfiniteWorld_ChunkSlotsCapacity = capacity;
+	return true;
+}
+
+static struct InfiniteWorld_Chunk* InfiniteWorld_FindChunk(int chunkX, int chunkZ) {
+	cc_uint32 index, slot;
+	if (!InfiniteWorld_ChunkSlotsCapacity) return NULL;
+	index = InfiniteWorld_HashChunk(chunkX, chunkZ) & (InfiniteWorld_ChunkSlotsCapacity - 1);
+	while ((slot = InfiniteWorld_ChunkSlots[index]) != 0) {
+		struct InfiniteWorld_Chunk* chunk = &InfiniteWorld_Chunks[slot - 1];
 		if (chunk->x == chunkX && chunk->z == chunkZ) return chunk;
+		index = (index + 1) & (InfiniteWorld_ChunkSlotsCapacity - 1);
 	}
 	return NULL;
+}
+
+static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIndex) {
+	cc_uint32 capacity = InfiniteWorld_ChunkSlotsCapacity;
+	cc_uint32 index;
+	if (!capacity || ((cc_uint32)InfiniteWorld_ChunksCount * 2 >= capacity)) {
+		cc_uint32 next = capacity ? capacity * 2 : 32;
+		if (next < capacity || !InfiniteWorld_RebuildChunkSlots(next)) return false;
+		capacity = InfiniteWorld_ChunkSlotsCapacity;
+	}
+	index = InfiniteWorld_HashChunk(chunkX, chunkZ) & (capacity - 1);
+	while (InfiniteWorld_ChunkSlots[index]) index = (index + 1) & (capacity - 1);
+	InfiniteWorld_ChunkSlots[index] = (cc_uint32)chunkIndex + 1;
+	return true;
 }
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
@@ -188,13 +237,18 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 		return NULL;
 	}
 
-	chunk = &InfiniteWorld_Chunks[InfiniteWorld_ChunksCount++];
+	chunk = &InfiniteWorld_Chunks[InfiniteWorld_ChunksCount];
 	chunk->x = chunkX;
 	chunk->z = chunkZ;
 	chunk->blocks = blocks;
 #ifdef EXTENDED_BLOCKS
 	chunk->blocks2 = NULL;
 #endif
+	if (!InfiniteWorld_InsertChunkSlot(chunkX, chunkZ, InfiniteWorld_ChunksCount)) {
+		Mem_Free(blocks);
+		return NULL;
+	}
+	InfiniteWorld_ChunksCount++;
 	return chunk;
 }
 
