@@ -77,7 +77,7 @@ int InfiniteWorld_LocalCoord(int blockCoord) {
 }
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
-	int x, y, z, worldX, worldZ, surface;
+	int x, y, z, worldX, worldZ, surface, index;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
@@ -92,18 +92,19 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 
 			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
+				index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x;
 				if (y == 0) {
-					blocks[(y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x] = BLOCK_BEDROCK;
+					blocks[index] = BLOCK_BEDROCK;
 				} else if (y < surface - 3) {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_STONE;
+					blocks[index] = BLOCK_STONE;
 				} else if (y < surface) {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_DIRT;
+					blocks[index] = BLOCK_DIRT;
 				} else if (y == surface) {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_GRASS;
+					blocks[index] = BLOCK_GRASS;
 				} else if (y <= 30) {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_STILL_WATER;
+					blocks[index] = BLOCK_STILL_WATER;
 				} else {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_AIR;
+					blocks[index] = BLOCK_AIR;
 				}
 			}
 		}
