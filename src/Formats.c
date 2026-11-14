@@ -1,6 +1,7 @@
 #include "Formats.h"
 #include "String_.h"
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Deflate.h"
 #include "Block.h"
 #include "Entity.h"
@@ -88,7 +89,7 @@ cc_result Map_LoadFrom(const cc_string* path) {
 	(void)stream.Close(&stream);
 	if (res) Logger_IOWarn2(res, "decoding", &raw_path);
 
-	World_SetNewMap(World.Blocks, World.Width, World.Height, World.Length);
+	if (!World.Infinite) World_SetNewMap(World.Blocks, World.Width, World.Height, World.Length);
 	LocalPlayers_MoveToSpawn(&update);
 
 	relPath = *path;
@@ -102,6 +103,10 @@ cc_result Map_LoadFrom(const cc_string* path) {
 /*########################################################################################################################*
 *--------------------------------------------------MCSharp level Format---------------------------------------------------*
 *#########################################################################################################################*/
+static cc_result IcW_Load(struct Stream* stream) {
+	return InfiniteWorld_Load(stream);
+}
+
 #define LVL_CUSTOMTILE 163
 #define LVL_CHUNKSIZE 16
 /* MCSharp* format is a GZIP compressed binary map format. All metadata is discarded.
@@ -1860,6 +1865,7 @@ cc_result Dat_Save(struct Stream* stream) {
 *-------------------------------------------------------Formats component-------------------------------------------------*
 *#########################################################################################################################*/
 static struct MapImporter cw_imp    = { ".cw",      Cw_Load };
+static struct MapImporter icw_imp   = { ".icw",     IcW_Load };
 static struct MapImporter dat_imp   = { ".dat",     Dat_Load };
 static struct MapImporter lvl_imp   = { ".lvl",     Lvl_Load };
 static struct MapImporter mine_imp  = { ".mine",    Dat_Load };
@@ -1868,6 +1874,7 @@ static struct MapImporter mclvl_imp = { ".mclevel", MCLevel_Load };
 
 static void OnInit(void) {
 	MapImporter_Register(&cw_imp);
+	MapImporter_Register(&icw_imp);
 	MapImporter_Register(&dat_imp);
 	MapImporter_Register(&lvl_imp);
 	MapImporter_Register(&mine_imp);

@@ -17,6 +17,7 @@
 #include "Http.h"
 #include "Block.h"
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Formats.h"
 #include "BlockPhysics.h"
 #include "MapRenderer.h"
@@ -1354,34 +1355,24 @@ static void SaveLevelScreen_OnInputTextChanged(void* elem) {
 static cc_result DoSaveMap(const cc_string* path, struct GZipState* state) {
 	static const cc_string schematic = String_FromConst(".schematic");
 	static const cc_string mine      = String_FromConst(".mine");
+	static const cc_string infinite  = String_FromConst(".icw");
 	struct Stream stream, compStream;
 	cc_filepath raw_path;
 	cc_result res;
-
+	if (World.Infinite && !String_CaselessEnds(path, &infinite)) return ERR_NOT_SUPPORTED;
 	Platform_EncodePath(&raw_path, path);
 	res = Stream_CreatePath(&stream, &raw_path);
 	if (res) { Logger_IOWarn2(res, "creating", &raw_path); return res; }
-
-	GZip_MakeStream(&compStream, state, &stream);
-
-	if (String_CaselessEnds(path, &schematic)) {
-		res = Schematic_Save(&compStream);
-	} else if (String_CaselessEnds(path, &mine)) {
-		res = Dat_Save(&compStream);
+	if (World.Infinite) {
+		res = InfiniteWorld_Save(&stream);
 	} else {
-		res = Cw_Save(&compStream);
+		GZip_MakeStream(&compStream, state, &stream);
+		if (String_CaselessEnds(path, &schematic)) res = Schematic_Save(&compStream);
+		else if (String_CaselessEnds(path, &mine)) res = Dat_Save(&compStream);
+		else res = Cw_Save(&compStream);
+		if (!res) res = compStream.Close(&compStream);
 	}
-
-	if (res) {
-		stream.Close(&stream);
-		Logger_IOWarn2(res, "encoding", &raw_path); return res;
-	}
-
-	if ((res = compStream.Close(&compStream))) {
-		stream.Close(&stream);
-		Logger_IOWarn2(res, "closing", &raw_path); return res;
-	}
-
+	if (res) { stream.Close(&stream); Logger_IOWarn2(res, "encoding", &raw_path); return res; }
 	res = stream.Close(&stream);
 	if (res) { Logger_IOWarn2(res, "closing", &raw_path); return res; }
 	return 0;
@@ -1418,7 +1409,8 @@ static void SaveLevelScreen_Save(void* screen, void* widget) {
 	}
 
 	String_InitArray(path, pathBuffer);
-	String_Format1(&path, "maps/%s.cw", &file);
+	if (World.Infinite) String_Format1(&path, "maps/%s.icw", &file);
+	else String_Format1(&path, "maps/%s.cw", &file);
 	String_Copy(&World.Name, &file);
 
 	Platform_EncodePath(&str, &path);
@@ -1450,12 +1442,14 @@ static void SaveLevelScreen_File(void* screen, void* b) {
 	static const char* const filters[] = {
 		".cw", ".schematic", ".mine", NULL
 	};
+	static const char* const infiniteTitles[] = { "ClassiCube infinite world", NULL };
+	static const char* const infiniteFilters[] = { ".icw", NULL };
 	struct SaveLevelScreen* s = (struct SaveLevelScreen*)screen;
 	struct SaveFileDialogArgs args;
 	cc_result res;
 
-	args.filters     = filters;
-	args.titles      = titles;
+	args.filters     = World.Infinite ? infiniteFilters : filters;
+	args.titles      = World.Infinite ? infiniteTitles : titles;
 	args.defaultName = s->input.base.text;
 	args.Callback    = SaveLevelScreen_UploadCallback;
 
