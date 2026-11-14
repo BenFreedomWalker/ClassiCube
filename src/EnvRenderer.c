@@ -824,10 +824,11 @@ void EnvRenderer_RenderMapSides(void) {
 }
 
 void EnvRenderer_RenderMapEdges(void) {
+	int yVisible;
 	if (World.Infinite) return;
 	/* Do not draw water when player cannot see it */
 	/* Fixes some 'depth bleeding through' issues with 16 bit depth buffers on large maps */
-	int yVisible = min(0, Env_SidesHeight);
+	yVisible = min(0, Env_SidesHeight);
 	if (Camera.CurrentPos.y < yVisible && sides_vb) return;
 
 	if (!edges_vb) {
