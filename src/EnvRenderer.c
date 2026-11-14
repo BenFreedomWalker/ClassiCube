@@ -810,6 +810,7 @@ static void RenderBorders(BlockID block, GfxResourceID vb, GfxResourceID tex, in
 }
 
 void EnvRenderer_RenderMapSides(void) {
+	if (World.Infinite) return;
 	if (!sides_vb) {
 		BuildMapSides();
 		if (!sides_vb) return;
@@ -819,6 +820,7 @@ void EnvRenderer_RenderMapSides(void) {
 }
 
 void EnvRenderer_RenderMapEdges(void) {
+	if (World.Infinite) return;
 	/* Do not draw water when player cannot see it */
 	/* Fixes some 'depth bleeding through' issues with 16 bit depth buffers on large maps */
 	int yVisible = min(0, Env_SidesHeight);

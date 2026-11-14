@@ -62,6 +62,20 @@ void World_NewMap(void) {
 	Event_RaiseVoid(&WorldEvents.NewMap);
 }
 
+void World_SetInfiniteMap(int seed, int height) {
+	World_NewMap();
+	World_SetDimensions(0, height, 0);
+	World.Seed = seed;
+	World.Infinite = true;
+	InfiniteWorld_Init(seed);
+	World.Name.length = 0;
+	if (Env.EdgeHeight == -1) Env.EdgeHeight = height / 2;
+	if (Env.CloudsHeight == -1) Env.CloudsHeight = height + 2;
+	GenerateNewUuid();
+	World.Loaded = true;
+	Event_RaiseVoid(&WorldEvents.MapLoaded);
+}
+
 void World_SetNewMap(BlockRaw* blocks, int width, int height, int length) {
 	InfiniteWorld_Reset();
 	World.Infinite = false;

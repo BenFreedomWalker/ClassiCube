@@ -1110,7 +1110,7 @@ void LocalPlayers_MoveToSpawn(struct LocationUpdate* update) {
 		p = &LocalPlayer_Instances[i];
 
 		/* offset other player spawnpoints in splitscreen oade */
-		if (Game_NumStates && i > 0) {
+		if (!World.Infinite && Game_NumStates && i > 0) {
 			RNGState rng;
 			Random_Seed(&rng, i + (int)Stopwatch_Measure());
 
@@ -1131,8 +1131,8 @@ void LocalPlayers_MoveToSpawn(struct LocationUpdate* update) {
 }
 
 Vec3 LocalPlayer_CalcDefaultSpawn(struct LocalPlayer* p) {
-	float x = (World.Width  / 2) + 0.5f;
-	float z = (World.Length / 2) + 0.5f;
+	float x = World.Infinite ? 0.5f : (World.Width / 2) + 0.5f;
+	float z = World.Infinite ? 0.5f : (World.Length / 2) + 0.5f;
 
 	return Respawn_FindSpawnPosition(x, z, p->Base.Size);
 }
