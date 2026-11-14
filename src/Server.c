@@ -121,10 +121,16 @@ static void SPConnection_BeginConnect(void) {
 	static const cc_string logName = String_FromConst("Singleplayer");
 	const struct MapGenerator* gen;
 	int seed, horSize, verSize;
+	cc_bool infinite;
 	RNGState rnd;
 
 	Chat_SetLogName(&logName);
 	Game_UseCPEBlocks = Game_Version.HasCPE;
+	infinite = Options_GetBool("infinite-world", false);
+	if (infinite) {
+		Options_SetBool("infinite-world", false);
+		Options_SaveIfChanged();
+	}
 
 	/* For when user drops a map file onto ClassiCube.exe */
 	if (SP_AutoloadMap.length) {
@@ -151,9 +157,7 @@ static void SPConnection_BeginConnect(void) {
 	Random_SeedFromCurrentTime(&rnd);
 	seed = Random_Next(&rnd, Int32_MaxValue);
 
-	if (Options_GetBool("infinite-world", false)) {
-		Options_SetBool("infinite-world", false);
-		Options_SaveIfChanged();
+	if (infinite) {
 		World_SetInfiniteMap(seed, 64);
 		return;
 	}
