@@ -36,6 +36,8 @@ BlockID InfiniteWorld_GetBlock(int x, int y, int z);
 cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block);
 /* Number of chunks currently resident in memory. */
 int InfiniteWorld_ChunkCount(void);
+cc_result InfiniteWorld_Save(struct Stream* stream);
+cc_result InfiniteWorld_Load(struct Stream* stream);
 
 
 CC_END_HEADER

@@ -1,6 +1,9 @@
 #include "InfiniteWorld.h"
 #include "BlockID.h"
 #include "Platform.h"
+#include "World.h"
+#include "Stream.h"
+#include "Errors.h"
 
 /* Integer-only value noise keeps terrain identical across platforms and visits.
    Coordinates are absolute block coordinates, not relative to the loaded area.
@@ -118,6 +121,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
    persistent chunk file format is added. */
 struct InfiniteWorld_Chunk {
 	int x, z;
+	cc_bool modified;
 	BlockRaw* blocks;
 #ifdef EXTENDED_BLOCKS
 	BlockRaw* blocks2;
@@ -240,6 +244,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	chunk = &InfiniteWorld_Chunks[InfiniteWorld_ChunksCount];
 	chunk->x = chunkX;
 	chunk->z = chunkZ;
+	chunk->modified = false;
 	chunk->blocks = blocks;
 #ifdef EXTENDED_BLOCKS
 	chunk->blocks2 = NULL;
@@ -292,5 +297,84 @@ cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block) {
 	if (chunk->blocks2) chunk->blocks2[index] = (BlockRaw)(block >> 8);
 #endif
 	chunk->blocks[index] = (BlockRaw)block;
+	chunk->modified = true;
 	return true;
+}
+
+
+static void InfiniteWorld_WriteU32(cc_uint8* dst, cc_uint32 value) {
+	dst[0] = (cc_uint8)value; dst[1] = (cc_uint8)(value >> 8);
+	dst[2] = (cc_uint8)(value >> 16); dst[3] = (cc_uint8)(value >> 24);
+}
+static cc_uint32 InfiniteWorld_ReadU32(const cc_uint8* src) {
+	return (cc_uint32)src[0] | ((cc_uint32)src[1] << 8) | ((cc_uint32)src[2] << 16) | ((cc_uint32)src[3] << 24);
+}
+cc_result InfiniteWorld_Save(struct Stream* stream) {
+	cc_uint8 header[16], coords[8];
+#ifdef EXTENDED_BLOCKS
+	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME] = { 0 };
+#endif
+	cc_uint32 count = 0;
+	int i;
+	cc_result res;
+	if (!InfiniteWorld_Active) return ERR_NOT_SUPPORTED;
+	for (i = 0; i < InfiniteWorld_ChunksCount; i++) if (InfiniteWorld_Chunks[i].modified) count++;
+	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '1';
+	InfiniteWorld_WriteU32(&header[4], (cc_uint32)InfiniteWorld_Seed);
+	InfiniteWorld_WriteU32(&header[8], INFINITE_WORLD_HEIGHT);
+	InfiniteWorld_WriteU32(&header[12], count);
+	if ((res = Stream_Write(stream, header, sizeof(header)))) return res;
+	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+		struct InfiniteWorld_Chunk* chunk = &InfiniteWorld_Chunks[i];
+		if (!chunk->modified) continue;
+		InfiniteWorld_WriteU32(&coords[0], (cc_uint32)chunk->x);
+		InfiniteWorld_WriteU32(&coords[4], (cc_uint32)chunk->z);
+		if ((res = Stream_Write(stream, coords, sizeof(coords)))) return res;
+		if ((res = Stream_Write(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+#ifdef EXTENDED_BLOCKS
+		if ((res = Stream_Write(stream, chunk->blocks2 ? chunk->blocks2 : upper, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+#endif
+	}
+	return 0;
+}
+cc_result InfiniteWorld_Load(struct Stream* stream) {
+	cc_uint8 header[16], coords[8];
+#ifdef EXTENDED_BLOCKS
+	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME];
+	int i;
+#endif
+	cc_uint32 count, n;
+	int seed, chunkX, chunkZ;
+	struct InfiniteWorld_Chunk* chunk;
+	cc_result res;
+	if ((res = Stream_Read(stream, header, sizeof(header)))) return res;
+	if (header[0] != 'I' || header[1] != 'C' || header[2] != 'W' || header[3] != '1') return ERR_INVALID_ARGUMENT;
+	seed = (int)(cc_int32)InfiniteWorld_ReadU32(&header[4]);
+	if (InfiniteWorld_ReadU32(&header[8]) != INFINITE_WORLD_HEIGHT) return ERR_INVALID_ARGUMENT;
+	count = InfiniteWorld_ReadU32(&header[12]);
+	if (count > 1000000u) return ERR_INVALID_ARGUMENT;
+	World_SetInfiniteMap(seed, INFINITE_WORLD_HEIGHT);
+	for (n = 0; n < count; n++) {
+		if ((res = Stream_Read(stream, coords, sizeof(coords)))) return res;
+		chunkX = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[0]);
+		chunkZ = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[4]);
+		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
+		if (!chunk) return ERR_OUT_OF_MEMORY;
+		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+#ifdef EXTENDED_BLOCKS
+		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+			if (upper[i]) {
+				if (!chunk->blocks2) {
+					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+					if (!chunk->blocks2) return ERR_OUT_OF_MEMORY;
+				}
+				break;
+			}
+		}
+		if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
+#endif
+		chunk->modified = true;
+	}
+	return 0;
 }
