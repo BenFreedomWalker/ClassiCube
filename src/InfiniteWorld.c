@@ -77,13 +77,13 @@ int InfiniteWorld_LocalCoord(int blockCoord) {
 }
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
-	int x, y, z, worldX, worldZ, surface, index;
+	int x, y, z, worldX, worldZ, surface;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
 	if (!blocks) return false;
-	if (baseX < Int32_MinValue || baseX + 15 > Int32_MaxValue) return false;
-	if (baseZ < Int32_MinValue || baseZ + 15 > Int32_MaxValue) return false;
+	if (baseX < Int32_MinValue || baseX + (INFINITE_WORLD_CHUNK_SIZE - 1) > Int32_MaxValue) return false;
+	if (baseZ < Int32_MinValue || baseZ + (INFINITE_WORLD_CHUNK_SIZE - 1) > Int32_MaxValue) return false;
 
 	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
 		worldZ = (int)(baseZ + z);
@@ -93,7 +93,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 
 			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
 				if (y == 0) {
-					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_BEDROCK;
+					blocks[(y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x] = BLOCK_BEDROCK;
 				} else if (y < surface - 3) {
 					blocks[(y * 16 * 16) + (z * 16) + x] = BLOCK_STONE;
 				} else if (y < surface) {
