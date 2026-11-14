@@ -116,12 +116,12 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	return true;
 }
 
-/* The first storage implementation retains generated chunks for the lifetime
-   of a world. This deliberately avoids discarding player edits before the
-   persistent chunk file format is added. */
+/* Modified chunks stay resident until saved. Generated-only chunk block arrays
+   use a bounded cache; their terrain can always be regenerated from the seed. */
 struct InfiniteWorld_Chunk {
 	int x, z;
 	cc_bool modified;
+	cc_uint64 lastUsed;
 	BlockRaw* blocks;
 #ifdef EXTENDED_BLOCKS
 	BlockRaw* blocks2;
@@ -134,6 +134,9 @@ static cc_uint32* InfiniteWorld_ChunkSlots;
 static cc_uint32 InfiniteWorld_ChunkSlotsCapacity;
 static int InfiniteWorld_Seed;
 static cc_bool InfiniteWorld_Active;
+static cc_uint64 InfiniteWorld_AccessCounter;
+static int InfiniteWorld_ResidentChunks;
+#define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 512
 
 void InfiniteWorld_Reset(void) {
 	int i;
@@ -152,6 +155,8 @@ void InfiniteWorld_Reset(void) {
 	InfiniteWorld_ChunksCapacity = 0;
 	InfiniteWorld_Seed = 0;
 	InfiniteWorld_Active = false;
+	InfiniteWorld_AccessCounter = 0;
+	InfiniteWorld_ResidentChunks = 0;
 }
 
 void InfiniteWorld_Init(int seed) {
@@ -217,11 +222,42 @@ static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIn
 	return true;
 }
 
+static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep) {
+	while (InfiniteWorld_ResidentChunks > INFINITE_WORLD_MAX_RESIDENT_CHUNKS) {
+		struct InfiniteWorld_Chunk* oldest = NULL;
+		int i;
+		for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+			struct InfiniteWorld_Chunk* candidate = &InfiniteWorld_Chunks[i];
+			if (!candidate->blocks || candidate->modified || candidate == keep) continue;
+			if (!oldest || candidate->lastUsed < oldest->lastUsed) oldest = candidate;
+		}
+		if (!oldest) break;
+		Mem_Free(oldest->blocks);
+		oldest->blocks = NULL;
+		InfiniteWorld_ResidentChunks--;
+	}
+}
+
 static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
-	struct InfiniteWorld_Chunk* chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
+	struct InfiniteWorld_Chunk* chunk;
 	BlockRaw* blocks;
-	if (chunk) return chunk;
 	if (!InfiniteWorld_Active) return NULL;
+	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
+	if (chunk) {
+		if (!chunk->blocks) {
+			blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+			if (!blocks) return NULL;
+			if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunkX, chunkZ, blocks)) {
+				Mem_Free(blocks);
+				return NULL;
+			}
+			chunk->blocks = blocks;
+			InfiniteWorld_ResidentChunks++;
+		}
+		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+		InfiniteWorld_EvictGeneratedChunks(chunk);
+		return chunk;
+	}
 
 	if (InfiniteWorld_ChunksCount == InfiniteWorld_ChunksCapacity) {
 		int capacity = InfiniteWorld_ChunksCapacity ? InfiniteWorld_ChunksCapacity * 2 : 16;
@@ -245,6 +281,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	chunk->x = chunkX;
 	chunk->z = chunkZ;
 	chunk->modified = false;
+	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 	chunk->blocks = blocks;
 #ifdef EXTENDED_BLOCKS
 	chunk->blocks2 = NULL;
@@ -254,6 +291,8 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 		return NULL;
 	}
 	InfiniteWorld_ChunksCount++;
+	InfiniteWorld_ResidentChunks++;
+	InfiniteWorld_EvictGeneratedChunks(chunk);
 	return chunk;
 }
 
