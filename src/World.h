@@ -2,6 +2,7 @@
 #define CC_WORLD_H
 #include "Vectors.h"
 #include "PackedCol.h"
+#include "InfiniteWorld.h"
 CC_BEGIN_HEADER
 
 /* 
@@ -29,6 +30,8 @@ CC_VAR extern struct _WorldData {
 	/* If only 8 bit blocks are used, equals World_Blocks. */
 	BlockRaw* Blocks2;
 #endif
+	/* Whether block access is routed through the infinite chunk store. */
+	cc_bool Infinite;
 	/* Volume of the world. */
 	int Volume;
 
@@ -76,21 +79,17 @@ CC_NOINLINE void World_SetDimensions(int width, int height, int length);
 void World_OutOfMemory(void);
 
 #ifdef EXTENDED_BLOCKS
+#ifdef EXTENDED_BLOCKS
 /* Sets World.Blocks2 and updates internal state for more than 256 blocks. */
 void World_SetMapUpper(BlockRaw* blocks);
-
 #define World_GetRawBlock(idx) ((World.Blocks[idx] | (World.Blocks2[idx] << 8)) & World.IDMask)
-
-/* Gets the block at the given coordinates. */
-/* NOTE: Does NOT check that the coordinates are inside the map. */
-static CC_INLINE BlockID World_GetBlock(int x, int y, int z) {
-	int i = World_Pack(x, y, z);
-	return (BlockID)World_GetRawBlock(i);
-}
 #else
-#define World_GetBlock(x, y, z) World.Blocks[World_Pack(x, y, z)]
-#define World_GetRawBlock(idx)  World.Blocks[idx]
+#define World_GetRawBlock(idx) World.Blocks[idx]
 #endif
+
+/* Gets the block at the given coordinates. Finite worlds retain their existing
+   array-backed behaviour; infinite worlds resolve blocks through chunk storage. */
+BlockID World_GetBlock(int x, int y, int z);
 
 /* If Y is above the map, returns BLOCK_AIR. */
 /* If coordinates are outside the map, returns BLOCK_AIR. */
@@ -105,14 +104,14 @@ BlockID World_SafeGetBlock(int x, int y, int z);
 
 /* Whether the given coordinates lie inside the map. */
 static CC_INLINE cc_bool World_Contains(int x, int y, int z) {
-	return (unsigned)x < (unsigned)World.Width
-		&& (unsigned)y < (unsigned)World.Height
-		&& (unsigned)z < (unsigned)World.Length;
+	return (unsigned)y < (unsigned)World.Height
+		&& (World.Infinite || ((unsigned)x < (unsigned)World.Width
+		&& (unsigned)z < (unsigned)World.Length));
 }
 /* Whether the given coordinates lie horizontally inside the map. */
 static CC_INLINE cc_bool World_ContainsXZ(int x, int z) {
-	return (unsigned)x < (unsigned)World.Width 
-		&& (unsigned)z < (unsigned)World.Length;
+	return World.Infinite || ((unsigned)x < (unsigned)World.Width
+		&& (unsigned)z < (unsigned)World.Length);
 }
 
 static CC_INLINE cc_bool World_CheckVolume(int width, int height, int length) {

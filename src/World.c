@@ -1,4 +1,5 @@
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Logger.h"
 #include "String_.h"
 #include "Platform.h"
@@ -38,6 +39,8 @@ static void GenerateNewUuid(void) {
 }
 
 void World_Reset(void) {
+	InfiniteWorld_Reset();
+	World.Infinite = false;
 #ifdef EXTENDED_BLOCKS
 	if (World.Blocks != World.Blocks2) Mem_Free(World.Blocks2);
 	World.Blocks2 = NULL;
@@ -60,6 +63,8 @@ void World_NewMap(void) {
 }
 
 void World_SetNewMap(BlockRaw* blocks, int width, int height, int length) {
+	InfiniteWorld_Reset();
+	World.Infinite = false;
 	/* TODO: TEMP HACK */
 	if (!blocks) { width = 0; height = 0; length = 0; }
 
@@ -100,6 +105,14 @@ CC_NOINLINE void World_SetDimensions(int width, int height, int length) {
 	World.ChunksCount = World.ChunksX * World.ChunksY * World.ChunksZ;
 }
 
+BlockID World_GetBlock(int x, int y, int z) {
+	if (World.Infinite) return InfiniteWorld_GetBlock(x, y, z);
+	{
+		int i = World_Pack(x, y, z);
+		return (BlockID)World_GetRawBlock(i);
+	}
+}
+
 #ifdef EXTENDED_BLOCKS
 void World_SetMapUpper(BlockRaw* blocks) {
 	World.Blocks2 = blocks;
@@ -123,7 +136,9 @@ static CC_NOINLINE void LazyInitUpper(int i, BlockID block) {
 }
 
 void World_SetBlock(int x, int y, int z, BlockID block) {
-	int i = World_Pack(x, y, z);
+	int i;
+	if (World.Infinite) { InfiniteWorld_SetBlock(x, y, z, block); return; }
+	i = World_Pack(x, y, z);
 	World.Blocks[i] = (BlockRaw)block;
 
 	/* defer allocation of second map array if possible */
@@ -136,6 +151,7 @@ void World_SetBlock(int x, int y, int z, BlockID block) {
 }
 #else
 void World_SetBlock(int x, int y, int z, BlockID block) {
+	if (World.Infinite) { InfiniteWorld_SetBlock(x, y, z, block); return; }
 	World.Blocks[World_Pack(x, y, z)] = block; 
 }
 #endif
