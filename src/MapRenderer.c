@@ -13,6 +13,7 @@
 #include "TexturePack.h"
 #include "Utils.h"
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Options.h"
 
 int MapRenderer_1DUsedCount;
@@ -46,6 +47,11 @@ static cc_uint32* distances;
 static int maxChunkUpdates;
 /* Cached number of chunks in the world */
 static int chunksCount;
+#define INFINITE_RENDER_RADIUS 4
+#define INFINITE_RENDER_WIDTH (INFINITE_RENDER_RADIUS * 2 + 1)
+#define INFINITE_RENDER_LAYER (INFINITE_RENDER_WIDTH * INFINITE_RENDER_WIDTH)
+#define INFINITE_RENDER_CHUNKS (INFINITE_RENDER_LAYER * (INFINITE_WORLD_HEIGHT / CHUNK_SIZE))
+static cc_bool infiniteSlotsInitialised;
 int MapRenderer_ChunksCount;
 
 static void ChunkInfo_Init(struct ChunkInfo* chunk, int x, int y, int z, int slotIndex) {
@@ -457,18 +463,50 @@ static void ResetPartCounts(void) {
 	}
 }
 
+static int InfiniteRenderMod(int value) {
+	int result = value % INFINITE_RENDER_WIDTH;
+	return result < 0 ? result + INFINITE_RENDER_WIDTH : result;
+}
+static int InfiniteRenderSlot(int cx, int cy, int cz) {
+	return cy * INFINITE_RENDER_LAYER + InfiniteRenderMod(cx) * INFINITE_RENDER_WIDTH + InfiniteRenderMod(cz);
+}
+static void InitInfiniteChunks(int centreX, int centreZ) {
+	int cx, cy, cz, index;
+	for (cy = 0; cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE; cy++)
+	 for (cx = centreX - INFINITE_RENDER_RADIUS; cx <= centreX + INFINITE_RENDER_RADIUS; cx++)
+	  for (cz = centreZ - INFINITE_RENDER_RADIUS; cz <= centreZ + INFINITE_RENDER_RADIUS; cz++) {
+		index = InfiniteRenderSlot(cx, cy, cz);
+		ChunkInfo_Init(&mapChunks[index], cx * CHUNK_SIZE, cy * CHUNK_SIZE, cz * CHUNK_SIZE, index);
+	}
+	for (index = 0; index < chunksCount; index++) {
+		sortedChunks[index] = &mapChunks[index]; renderChunks[index] = &mapChunks[index]; distances[index] = 0;
+	}
+	infiniteSlotsInitialised = true; ResetPartCounts(); ResetPartFlags();
+}
+static void RecenterInfiniteChunks(int centreX, int centreZ) {
+	int cx, cy, cz, index, x, y, z;
+	if (!infiniteSlotsInitialised) { InitInfiniteChunks(centreX, centreZ); return; }
+	for (cy = 0; cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE; cy++)
+	 for (cx = centreX - INFINITE_RENDER_RADIUS; cx <= centreX + INFINITE_RENDER_RADIUS; cx++)
+	  for (cz = centreZ - INFINITE_RENDER_RADIUS; cz <= centreZ + INFINITE_RENDER_RADIUS; cz++) {
+		index = InfiniteRenderSlot(cx, cy, cz);
+		x = cx * CHUNK_SIZE; y = cy * CHUNK_SIZE; z = cz * CHUNK_SIZE;
+		if (mapChunks[index].centreX == x + HALF_CHUNK_SIZE && mapChunks[index].centreY == y + HALF_CHUNK_SIZE &&
+			mapChunks[index].centreZ == z + HALF_CHUNK_SIZE) continue;
+		DeleteChunk(&mapChunks[index]); ChunkInfo_Init(&mapChunks[index], x, y, z, index);
+		sortedChunks[index] = &mapChunks[index]; renderChunks[index] = &mapChunks[index]; distances[index] = 0;
+	}
+	ResetPartCounts(); ResetPartFlags();
+}
 static void InitChunks(void) {
 	int x, y, z, index = 0;
-	for (z = 0; z < World.Length; z += CHUNK_SIZE) {
-		for (y = 0; y < World.Height; y += CHUNK_SIZE) {
-			for (x = 0; x < World.Width; x += CHUNK_SIZE) {
-				ChunkInfo_Init(&mapChunks[index], x, y, z, index);
-				sortedChunks[index] = &mapChunks[index];
-				renderChunks[index] = &mapChunks[index];
-				distances[index]    = 0;
-				index++;
-			}
-		}
+	if (World.Infinite) { infiniteSlotsInitialised = false; InitInfiniteChunks(0, 0); return; }
+	infiniteSlotsInitialised = false;
+	for (z = 0; z < World.Length; z += CHUNK_SIZE)
+	 for (y = 0; y < World.Height; y += CHUNK_SIZE)
+	  for (x = 0; x < World.Width; x += CHUNK_SIZE) {
+		ChunkInfo_Init(&mapChunks[index], x, y, z, index);
+		sortedChunks[index] = &mapChunks[index]; renderChunks[index] = &mapChunks[index]; distances[index] = 0; index++;
 	}
 }
 
@@ -497,7 +535,7 @@ void MapRenderer_Refresh(void) {
 	int oldCount;
 	chunkPos = IVec3_MaxValue();
 
-	if (mapChunks && World.Blocks) {
+	if (mapChunks && (World.Blocks || World.Infinite)) {
 		DeleteChunks();
 
 		oldCount = MapRenderer_1DUsedCount;
@@ -691,6 +729,8 @@ static void UpdateSortOrder(void) {
 	if (pos.x == chunkPos.x && pos.y == chunkPos.y && pos.z == chunkPos.z) return;
 	chunkPos = pos;
 	if (!chunksCount) return;
+	if (World.Infinite) RecenterInfiniteChunks(InfiniteWorld_ChunkCoord(pos.x - HALF_CHUNK_SIZE),
+		InfiniteWorld_ChunkCoord(pos.z - HALF_CHUNK_SIZE));
 
 	for (i = 0; i < chunksCount; i++) {
 		info = sortedChunks[i];
@@ -728,20 +768,31 @@ void MapRenderer_Update(float delta) {
 *#########################################################################################################################*/
 void MapRenderer_RefreshChunk(int cx, int cy, int cz) {
 	struct ChunkInfo* chunk;
+	if (!mapChunks) return;
+	if (World.Infinite) {
+		int index;
+		if (cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
+		index = InfiniteRenderSlot(cx, cy, cz); chunk = &mapChunks[index];
+		if (chunk->centreX != cx * CHUNK_SIZE + HALF_CHUNK_SIZE || chunk->centreY != cy * CHUNK_SIZE + HALF_CHUNK_SIZE ||
+			chunk->centreZ != cz * CHUNK_SIZE + HALF_CHUNK_SIZE) return;
+		ChunkInfo_Refresh(chunk); return;
+	}
 	if (cx < 0 || cy < 0 || cz < 0 || cx >= World.ChunksX || cy >= World.ChunksY || cz >= World.ChunksZ) return;
-
-	chunk = &mapChunks[World_ChunkPack(cx, cy, cz)];
-	ChunkInfo_Refresh(chunk);
+	chunk = &mapChunks[World_ChunkPack(cx, cy, cz)]; ChunkInfo_Refresh(chunk);
 }
 
 void MapRenderer_OnBlockChanged(int x, int y, int z, BlockID block) {
-	int cx = x >> CHUNK_SHIFT, cy = y >> CHUNK_SHIFT, cz = z >> CHUNK_SHIFT;
+	int cx, cy, cz;
 	struct ChunkInfo* chunk;
-
-	chunk = &mapChunks[World_ChunkPack(cx, cy, cz)];
-	chunk->allAir &= Blocks.Draw[block] == DRAW_GAS;
-	/* TODO: Don't lookup twice, refresh directly using chunk pointer */
-	ChunkInfo_Refresh(chunk);
+	if (!mapChunks) return;
+	if (World.Infinite) {
+		cx = InfiniteWorld_ChunkCoord(x); cy = y >> CHUNK_SHIFT; cz = InfiniteWorld_ChunkCoord(z);
+		if (cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
+		chunk = &mapChunks[InfiniteRenderSlot(cx, cy, cz)];
+		if (chunk->centreX != cx * CHUNK_SIZE + HALF_CHUNK_SIZE || chunk->centreY != cy * CHUNK_SIZE + HALF_CHUNK_SIZE ||
+			chunk->centreZ != cz * CHUNK_SIZE + HALF_CHUNK_SIZE) return;
+	} else { cx = x >> CHUNK_SHIFT; cy = y >> CHUNK_SHIFT; cz = z >> CHUNK_SHIFT; chunk = &mapChunks[World_ChunkPack(cx, cy, cz)]; }
+	chunk->allAir &= Blocks.Draw[block] == DRAW_GAS; ChunkInfo_Refresh(chunk);
 }
 
 static void OnEnvVariableChanged(void* obj, int envVar) {
@@ -784,6 +835,7 @@ static void Refresh_(void* obj)      { MapRenderer_Refresh(); }
 
 static void OnNewMap(void) {
 	Game.ChunkUpdates = 0;
+	infiniteSlotsInitialised = false;
 	DeleteChunks();
 	ResetPartCounts();
 
@@ -793,7 +845,7 @@ static void OnNewMap(void) {
 }
 
 static void OnNewMapLoaded(void) {
-	chunksCount = World.ChunksCount;
+	chunksCount = World.Infinite ? INFINITE_RENDER_CHUNKS : World.ChunksCount;
 	MapRenderer_ChunksCount = chunksCount;
 	/* TODO: Only perform reallocation when map volume has changed */
 	/*if (chunksCount != World.ChunksCount) { */
