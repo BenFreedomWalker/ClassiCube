@@ -400,6 +400,10 @@ void ClassicLighting_FreeState(void) {
 }
 
 void ClassicLighting_AllocState(void) {
+	if (World.Infinite) {
+		classic_heightmap = NULL;
+		return;
+	}
 	classic_heightmap = (cc_int16*)Mem_TryAlloc(World.Width * World.Length, 2);
 	if (classic_heightmap) {
 		ClassicLighting_Refresh();
