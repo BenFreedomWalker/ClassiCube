@@ -783,17 +783,30 @@ void MapRenderer_RefreshChunk(int cx, int cy, int cz) {
 }
 
 void MapRenderer_OnBlockChanged(int x, int y, int z, BlockID block) {
-	int cx, cy, cz;
+	int cx, cy, cz, lx = 0, ly = 0, lz = 0;
 	struct ChunkInfo* chunk;
 	if (!mapChunks) return;
 	if (World.Infinite) {
 		cx = InfiniteWorld_ChunkCoord(x); cy = y >> CHUNK_SHIFT; cz = InfiniteWorld_ChunkCoord(z);
+		lx = InfiniteWorld_LocalCoord(x); ly = y & CHUNK_MASK; lz = InfiniteWorld_LocalCoord(z);
 		if (cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
 		chunk = &mapChunks[InfiniteRenderSlot(cx, cy, cz)];
 		if (chunk->centreX != cx * CHUNK_SIZE + HALF_CHUNK_SIZE || chunk->centreY != cy * CHUNK_SIZE + HALF_CHUNK_SIZE ||
 			chunk->centreZ != cz * CHUNK_SIZE + HALF_CHUNK_SIZE) return;
-	} else { cx = x >> CHUNK_SHIFT; cy = y >> CHUNK_SHIFT; cz = z >> CHUNK_SHIFT; chunk = &mapChunks[World_ChunkPack(cx, cy, cz)]; }
-	chunk->allAir &= Blocks.Draw[block] == DRAW_GAS; ChunkInfo_Refresh(chunk);
+	} else {
+		cx = x >> CHUNK_SHIFT; cy = y >> CHUNK_SHIFT; cz = z >> CHUNK_SHIFT;
+		chunk = &mapChunks[World_ChunkPack(cx, cy, cz)];
+	}
+	chunk->allAir &= Blocks.Draw[block] == DRAW_GAS;
+	ChunkInfo_Refresh(chunk);
+	if (World.Infinite) {
+		if (lx == 0)  MapRenderer_RefreshChunk(cx - 1, cy, cz);
+		if (lx == 15) MapRenderer_RefreshChunk(cx + 1, cy, cz);
+		if (ly == 0 && cy > 0) MapRenderer_RefreshChunk(cx, cy - 1, cz);
+		if (ly == 15 && cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE - 1) MapRenderer_RefreshChunk(cx, cy + 1, cz);
+		if (lz == 0)  MapRenderer_RefreshChunk(cx, cy, cz - 1);
+		if (lz == 15) MapRenderer_RefreshChunk(cx, cy, cz + 1);
+	}
 }
 
 static void OnEnvVariableChanged(void* obj, int envVar) {
