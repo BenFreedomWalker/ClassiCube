@@ -1379,17 +1379,19 @@ static cc_result DoSaveMap(const cc_string* path, struct GZipState* state) {
 }
 
 static cc_result SaveLevelScreen_SaveMap(const cc_string* path) {
-	struct GZipState* state;
+	struct GZipState* state = NULL;
 	cc_result res;
-
-	state = (struct GZipState*)Mem_TryAlloc(1, sizeof(struct GZipState));
-	res   = ERR_OUT_OF_MEMORY;
-	if (!state) { Logger_SysWarn(res, "allocating temp memory"); return res; }
-
+	if (!World.Infinite) {
+		state = (struct GZipState*)Mem_TryAlloc(1, sizeof(struct GZipState));
+		if (!state) {
+			res = ERR_OUT_OF_MEMORY;
+			Logger_SysWarn(res, "allocating temp memory");
+			return res;
+		}
+	}
 	res = DoSaveMap(path, state);
 	Mem_Free(state);
 	if (res) return res;
-
 	World.LastSave = Game.Time;
 	Gui_ShowPauseMenu();
 	return 0;
