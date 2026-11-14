@@ -1842,7 +1842,7 @@ static void LoadLevelScreen_LoadEntries(struct ListScreen* s) {
 static void LoadLevelScreen_UploadCallback(const cc_string* path) { Map_LoadFrom(path); }
 static void LoadLevelScreen_ActionFunc(void* s, void* w) {
 	static const char* const filters[] = { 
-		".cw", ".dat", ".lvl", ".mine", ".fcm", ".mclevel", NULL 
+		".cw", ".icw", ".dat", ".lvl", ".mine", ".fcm", ".mclevel", NULL 
 	}; /* TODO not hardcode list */
 	static struct OpenFileDialogArgs args = {
 		"Classic map files", filters,
