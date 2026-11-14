@@ -497,7 +497,7 @@ static void RecenterInfiniteChunks(int centreX, int centreZ) {
 		sortedChunks[index] = &mapChunks[index]; renderChunks[index] = &mapChunks[index]; distances[index] = 0;
 	}
 	for (index = 0; index < chunksCount; index++) sortedChunks[index] = &mapChunks[index];
-	ResetPartCounts(); ResetPartFlags();
+	ResetPartFlags();
 }
 static void InitChunks(void) {
 	int x, y, z, index = 0;
