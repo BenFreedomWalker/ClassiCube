@@ -47,7 +47,7 @@ static cc_uint32* distances;
 static int maxChunkUpdates;
 /* Cached number of chunks in the world */
 static int chunksCount;
-#define INFINITE_RENDER_RADIUS 4
+#define INFINITE_RENDER_RADIUS 8
 #define INFINITE_RENDER_WIDTH (INFINITE_RENDER_RADIUS * 2 + 1)
 #define INFINITE_RENDER_LAYER (INFINITE_RENDER_WIDTH * INFINITE_RENDER_WIDTH)
 #define INFINITE_RENDER_CHUNKS (INFINITE_RENDER_LAYER * (INFINITE_WORLD_HEIGHT / CHUNK_SIZE))
