@@ -15,6 +15,13 @@ CC_BEGIN_HEADER
    Returns false when the requested chunk would overflow block coordinates.
    Generation depends only on seed and absolute chunk coordinates.
 */
+
+/* Converts signed block coordinates to chunk and in-chunk coordinates.
+   Local coordinates are always in the range [0, 15], including for negatives.
+*/
+int InfiniteWorld_ChunkCoord(int blockCoord);
+int InfiniteWorld_LocalCoord(int blockCoord);
+
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks);
 
 CC_END_HEADER

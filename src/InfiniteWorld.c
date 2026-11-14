@@ -62,6 +62,20 @@ static int InfiniteWorld_SurfaceHeight(int seed, int x, int z) {
 	return height;
 }
 
+
+/* C integer division truncates toward zero, so adjust negative nonmultiples
+   to obtain mathematical floor division. */
+int InfiniteWorld_ChunkCoord(int blockCoord) {
+	int chunk = blockCoord / INFINITE_WORLD_CHUNK_SIZE;
+	if (blockCoord < 0 && (blockCoord % INFINITE_WORLD_CHUNK_SIZE)) chunk--;
+	return chunk;
+}
+
+int InfiniteWorld_LocalCoord(int blockCoord) {
+	int local = blockCoord % INFINITE_WORLD_CHUNK_SIZE;
+	return local < 0 ? local + INFINITE_WORLD_CHUNK_SIZE : local;
+}
+
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
