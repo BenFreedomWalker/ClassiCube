@@ -151,6 +151,10 @@ static void SPConnection_BeginConnect(void) {
 	Random_SeedFromCurrentTime(&rnd);
 	seed = Random_Next(&rnd, Int32_MaxValue);
 
+	if (Options_GetBool("infinite-world", false)) {
+		World_SetInfiniteMap(seed, 64);
+		return;
+	}
 	Gen_Start(gen, seed, horSize, verSize, horSize);
 }
 

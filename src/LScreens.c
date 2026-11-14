@@ -779,12 +779,53 @@ static void MainScreen_Resume(void* w) {
 	Launcher_StartGame(&info.user, &info.mppass, &info.ip, &info.port, &info.server, 1);
 }
 
-static void MainScreen_Singleplayer(void* w) {
+static struct WorldTypeScreen {
+	LScreen_Layout
+	struct LButton btnFinite, btnInfinite, btnBack;
+	struct LLabel lblFinite, lblInfinite;
+} WorldTypeScreen CC_BIG_VAR;
+static struct LWidget* worldType_widgets[5];
+
+LAYOUTS worldType_btnFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -70 } };
+LAYOUTS worldType_btnInfinite[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  10 } };
+LAYOUTS worldType_btnBack[]     = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  90 } };
+LAYOUTS worldType_lblFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -43 } };
+LAYOUTS worldType_lblInfinite[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  37 } };
+
+static void WorldType_Start(cc_bool infinite) {
 	static const cc_string defUser = String_FromConst(DEFAULT_USERNAME);
 	const cc_string* user = &MainScreen.iptUsername.text;
-
 	if (!user->length) user = &defUser;
+	Options_SetBool("infinite-world", infinite);
+	Options_SaveIfChanged();
 	Launcher_StartGame(user, &String_Empty, &String_Empty, &String_Empty, &String_Empty, 1);
+}
+static void WorldType_Finite(void* w)   { WorldType_Start(false); }
+static void WorldType_Infinite(void* w) { WorldType_Start(true); }
+static void WorldType_Back(void* w)     { MainScreen_SetActive(); }
+
+static void WorldType_Activated(struct LScreen* s_) {
+	struct WorldTypeScreen* s = (struct WorldTypeScreen*)s_;
+	LButton_Add(s, &s->btnFinite, 150, 35, "Finite World", WorldType_Finite, worldType_btnFinite);
+	LLabel_Add(s, &s->lblFinite, "&eClassic bounded map with existing generators", worldType_lblFinite);
+	LButton_Add(s, &s->btnInfinite, 150, 35, "Infinite World", WorldType_Infinite, worldType_btnInfinite);
+	LLabel_Add(s, &s->lblInfinite, "&eEndless terrain streamed around the player", worldType_lblInfinite);
+	LButton_Add(s, &s->btnBack, 80, 35, "Back", WorldType_Back, worldType_btnBack);
+}
+
+static void WorldTypeScreen_SetActive(void) {
+	struct WorldTypeScreen* s = &WorldTypeScreen;
+	LScreen_Reset((struct LScreen*)s);
+	s->widgets = worldType_widgets;
+	s->maxWidgets = Array_Elems(worldType_widgets);
+	s->Activated = WorldType_Activated;
+	s->title = "New Singleplayer World";
+	s->onEscapeWidget = (struct LWidget*)&s->btnBack;
+	Launcher_SetScreen((struct LScreen*)s);
+}
+
+static void MainScreen_Singleplayer(void* w) {
+	WorldTypeScreen_SetActive();
 }
 
 static void MainScreen_ResumeHover(void* w) {
