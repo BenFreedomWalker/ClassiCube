@@ -14,6 +14,8 @@ extern struct IGameComponent MapRenderer_Component;
 
 /* Max used 1D atlases. (i.e. Atlas1D_Index(maxTextureLoc) + 1) */
 extern int MapRenderer_1DUsedCount;
+/* Number of reusable chunk slots backing renderer mesh-part storage. */
+extern int MapRenderer_ChunksCount;
 
 /* Buffer for all chunk parts. There are (MapRenderer_ChunksCount * Atlas1D_Count) parts in the buffer,
 with parts for 'normal' buffer being in lower half. */
@@ -36,6 +38,8 @@ struct ChunkPartInfo {
 struct ChunkInfo {	
 	/* Signed world-space centre coordinates. Infinite worlds need negative positions. */
 	cc_int32 centreX, centreY, centreZ;
+	/* Stable mesh-part storage slot; independent of world coordinates. */
+	int slotIndex;
 
 	cc_uint8 visible : 1; /* Whether chunk is visible to the player */
 	cc_uint8 empty   : 1; /* Whether chunk is empty of data and is known to have no data */

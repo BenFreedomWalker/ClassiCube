@@ -46,8 +46,10 @@ static cc_uint32* distances;
 static int maxChunkUpdates;
 /* Cached number of chunks in the world */
 static int chunksCount;
+int MapRenderer_ChunksCount;
 
-static void ChunkInfo_Init(struct ChunkInfo* chunk, int x, int y, int z) {
+static void ChunkInfo_Init(struct ChunkInfo* chunk, int x, int y, int z, int slotIndex) {
+	chunk->slotIndex = slotIndex;
 	chunk->centreX = x + HALF_CHUNK_SIZE; chunk->centreY = y + HALF_CHUNK_SIZE; 
 	chunk->centreZ = z + HALF_CHUNK_SIZE;
 #if CC_GFX_BACKEND != CC_GFX_BACKEND_GL11
@@ -460,7 +462,7 @@ static void InitChunks(void) {
 	for (z = 0; z < World.Length; z += CHUNK_SIZE) {
 		for (y = 0; y < World.Height; y += CHUNK_SIZE) {
 			for (x = 0; x < World.Width; x += CHUNK_SIZE) {
-				ChunkInfo_Init(&mapChunks[index], x, y, z);
+				ChunkInfo_Init(&mapChunks[index], x, y, z, index);
 				sortedChunks[index] = &mapChunks[index];
 				renderChunks[index] = &mapChunks[index];
 				distances[index]    = 0;
@@ -792,6 +794,7 @@ static void OnNewMap(void) {
 
 static void OnNewMapLoaded(void) {
 	chunksCount = World.ChunksCount;
+	MapRenderer_ChunksCount = chunksCount;
 	/* TODO: Only perform reallocation when map volume has changed */
 	/*if (chunksCount != World.ChunksCount) { */
 		/* chunksCount = World.ChunksCount; */

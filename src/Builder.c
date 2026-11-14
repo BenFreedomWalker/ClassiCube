@@ -339,14 +339,14 @@ static void OutputChunkPartsMeta(int x, int y, int z, struct ChunkInfo* info) {
 	int partsIndex;
 	int i, j, curIdx, offset;
 	
-	partsIndex = World_ChunkPack(x >> CHUNK_SHIFT, y >> CHUNK_SHIFT, z >> CHUNK_SHIFT);
+	partsIndex = info->slotIndex;
 	offset  = 0;
 	hasNorm = false;
 	hasTran = false;
 
 	for (i = 0; i < MapRenderer_1DUsedCount; i++) {
 		j = i + ATLAS1D_MAX_ATLASES;
-		curIdx = partsIndex + i * World.ChunksCount;
+		curIdx = partsIndex + i * MapRenderer_ChunksCount;
 
 		hasNorm |= SetPartInfo(&Builder_Parts[i], &offset, &MapRenderer_PartsNormal[curIdx]);
 		hasTran |= SetPartInfo(&Builder_Parts[j], &offset, &MapRenderer_PartsTranslucent[curIdx]);
