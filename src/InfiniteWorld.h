@@ -24,5 +24,19 @@ int InfiniteWorld_LocalCoord(int blockCoord);
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks);
 
+/* Starts a new in-memory infinite world. Existing finite World state is untouched. */
+void InfiniteWorld_Init(int seed);
+/* Frees all cached chunks and disables the infinite-world block store. */
+void InfiniteWorld_Reset(void);
+/* Reads a block from the generated chunk store. Y below zero is bedrock;
+   Y at or above the world height is air. */
+BlockID InfiniteWorld_GetBlock(int x, int y, int z);
+/* Changes a block in the chunk store. Returns false if coordinates are invalid
+   or memory allocation fails. */
+cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block);
+/* Number of chunks currently resident in memory. */
+int InfiniteWorld_ChunkCount(void);
+
+
 CC_END_HEADER
 #endif
