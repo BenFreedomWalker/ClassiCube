@@ -446,25 +446,18 @@ static float GetRainHeight(int x, int z) {
 }
 
 void EnvRenderer_OnBlockChanged(int x, int y, int z, BlockID oldBlock, BlockID newBlock) {
-	if (World.Infinite) return;
-	cc_bool didBlock = !(Blocks.Draw[oldBlock] == DRAW_GAS || Blocks.Draw[oldBlock] == DRAW_SPRITE);
-	cc_bool nowBlock = !(Blocks.Draw[newBlock] == DRAW_GAS || Blocks.Draw[newBlock] == DRAW_SPRITE);
+	cc_bool didBlock, nowBlock;
 	int hIndex, height;
+	if (World.Infinite) return;
+	didBlock = !(Blocks.Draw[oldBlock] == DRAW_GAS || Blocks.Draw[oldBlock] == DRAW_SPRITE);
+	nowBlock = !(Blocks.Draw[newBlock] == DRAW_GAS || Blocks.Draw[newBlock] == DRAW_SPRITE);
 	if (didBlock == nowBlock) return;
-
 	hIndex = Weather_Pack(x, z);
 	height = Weather_Heightmap[hIndex];
-	/* Two cases can be skipped here: */
-	/* a) rain height was not calculated to begin with (height is short.MaxValue) */
-	/* b) changed y is below current calculated rain height */
 	if (y < height) return;
-
 	if (nowBlock) {
-		/* Simple case: Rest of column below is now not visible to rain. */
 		Weather_Heightmap[hIndex] = y;
 	} else {
-		/* Part of the column is now visible to rain, we don't know how exactly how high it should be though. */
-		/* However, we know that if the old block was above or equal to rain height, then the new rain height must be <= old block.y */
 		CalcRainHeightAt(x, y, z, hIndex);
 	}
 }
