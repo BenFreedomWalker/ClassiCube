@@ -1,6 +1,7 @@
 #ifndef CC_INFINITEWORLD_H
 #define CC_INFINITEWORLD_H
 #include "Core.h"
+struct Stream;
 CC_BEGIN_HEADER
 
 /* First-stage deterministic terrain source for streamed infinite worlds.
@@ -34,7 +35,7 @@ BlockID InfiniteWorld_GetBlock(int x, int y, int z);
 /* Changes a block in the chunk store. Returns false if coordinates are invalid
    or memory allocation fails. */
 cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block);
-/* Number of chunks currently resident in memory. */
+/* Number of chunk coordinates tracked by the world. */
 int InfiniteWorld_ChunkCount(void);
 cc_result InfiniteWorld_Save(struct Stream* stream);
 cc_result InfiniteWorld_Load(struct Stream* stream);
