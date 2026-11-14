@@ -67,6 +67,7 @@ static int ClassicLighting_CalcHeightAt(int x, int maxY, int z, int hIndex) {
 }
 
 int ClassicLighting_GetLightHeight(int x, int z) {
+	if (World.Infinite) return -10;
 	int hIndex = Lighting_Pack(x, z);
 	int lightH = classic_heightmap[hIndex];
 	return lightH == HEIGHT_UNCALCULATED ? ClassicLighting_CalcHeightAt(x, World.Height - 1, z, hIndex) : lightH;
@@ -78,6 +79,7 @@ cc_bool ClassicLighting_IsLit(int x, int y, int z) {
 }
 
 cc_bool ClassicLighting_IsLit_Fast(int x, int y, int z) {
+	if (World.Infinite) return true;
 	return y > classic_heightmap[Lighting_Pack(x, z)];
 }
 
@@ -98,22 +100,27 @@ static PackedCol ClassicLighting_Color_XSide(int x, int y, int z) {
 }
 
 static PackedCol ClassicLighting_Color_Sprite_Fast(int x, int y, int z) {
+	if (World.Infinite) return Env.SunCol;
 	return y > classic_heightmap[Lighting_Pack(x, z)] ? Env.SunCol : Env.ShadowCol;
 }
 
 static PackedCol ClassicLighting_Color_YMax_Fast(int x, int y, int z) {
+	if (World.Infinite) return Env.SunCol;
 	return y > classic_heightmap[Lighting_Pack(x, z)] ? Env.SunCol : Env.ShadowCol;
 }
 
 static PackedCol ClassicLighting_Color_YMin_Fast(int x, int y, int z) {
+	if (World.Infinite) return Env.SunYMin;
 	return y > classic_heightmap[Lighting_Pack(x, z)] ? Env.SunYMin : Env.ShadowYMin;
 }
 
 static PackedCol ClassicLighting_Color_XSide_Fast(int x, int y, int z) {
+	if (World.Infinite) return Env.SunXSide;
 	return y > classic_heightmap[Lighting_Pack(x, z)] ? Env.SunXSide : Env.ShadowXSide;
 }
 
 static PackedCol ClassicLighting_Color_ZSide_Fast(int x, int y, int z) {
+	if (World.Infinite) return Env.SunZSide;
 	return y > classic_heightmap[Lighting_Pack(x, z)] ? Env.SunZSide : Env.ShadowZSide;
 }
 
@@ -375,6 +382,7 @@ static void Heightmap_FinishCoverage(int x1, int z1, int xCount, int zCount) {
 
 
 void ClassicLighting_LightHint(int startX, int startY, int startZ) {
+	if (World.Infinite) return;
 	int x1 = max(startX, 0), x2 = min(World.Width,  startX + EXTCHUNK_SIZE);
 	int z1 = max(startZ, 0), z2 = min(World.Length, startZ + EXTCHUNK_SIZE);
 	int xCount = x2 - x1, zCount = z2 - z1;

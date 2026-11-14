@@ -147,9 +147,9 @@ static cc_bool SetPartInfo(struct Builder1DPart* part, int* offset, struct Chunk
 
 
 static void PrepareChunk(int x1, int y1, int z1) {
-	int xMax = min(World.Width,  x1 + CHUNK_SIZE);
+	int xMax = World.Infinite ? x1 + CHUNK_SIZE : min(World.Width, x1 + CHUNK_SIZE);
 	int yMax = min(World.Height, y1 + CHUNK_SIZE);
-	int zMax = min(World.Length, z1 + CHUNK_SIZE);
+	int zMax = World.Infinite ? z1 + CHUNK_SIZE : min(World.Length, z1 + CHUNK_SIZE);
 
 	int cIndex, index, tileIdx;
 	BlockID b;
@@ -334,6 +334,30 @@ static cc_bool ReadBorderChunkData(int x1, int y1, int z1, cc_bool* outAllAir) {
 	return false;
 }
 
+static cc_bool ReadInfiniteChunkData(int x1, int y1, int z1, cc_bool* outAllAir) {
+	cc_bool allAir = true, allSolid = true;
+	int xx, yy, zz, x, y, z, cIndex;
+	BlockID block;
+
+	for (yy = -1; yy < 17; ++yy) {
+		y = yy + y1;
+		for (zz = -1; zz < 17; ++zz) {
+			z = zz + z1;
+			cIndex = Builder_PackChunk(-1, yy, zz);
+			for (xx = -1; xx < 17; ++xx, ++cIndex) {
+				x = xx + x1;
+				block = (unsigned)y < (unsigned)World.Height
+					? World_GetBlock(x, y, z) : BLOCK_AIR;
+				allAir   = allAir && Blocks.Draw[block] == DRAW_GAS;
+				allSolid = allSolid && Blocks.FullOpaque[block];
+				Builder_Chunk[cIndex] = block;
+			}
+		}
+	}
+	*outAllAir = allAir;
+	return allSolid;
+}
+
 static void OutputChunkPartsMeta(int x, int y, int z, struct ChunkInfo* info) {
 	cc_bool hasNorm, hasTran;
 	int partsIndex;
@@ -389,16 +413,23 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	Builder_BitFlags = bitFlags;
 	Builder_PrePrepareChunk();
 	
-	onBorder = 
-		x1 == 0 || y1 == 0 || z1 == 0   || x1 + CHUNK_SIZE >= World.Width ||
-		y1 + CHUNK_SIZE >= World.Height || z1 + CHUNK_SIZE >= World.Length;
-
-	if (onBorder) {
-		/* less optimal case here */
+	if (World.Infinite) {
+		/* X/Z have no borders in an infinite world; only Y is bounded. */
 		Mem_Set(chunk, BLOCK_AIR, EXTCHUNK_SIZE_3 * sizeof(BlockID));
-		allSolid = ReadBorderChunkData(x1, y1, z1, &allAir);
+		allSolid = ReadInfiniteChunkData(x1, y1, z1, &allAir);
+		onBorder = y1 == 0 || y1 + CHUNK_SIZE >= World.Height;
 	} else {
-		allSolid = ReadChunkData(x1, y1, z1, &allAir);
+		onBorder =
+			x1 == 0 || y1 == 0 || z1 == 0 || x1 + CHUNK_SIZE >= World.Width ||
+			y1 + CHUNK_SIZE >= World.Height || z1 + CHUNK_SIZE >= World.Length;
+
+		if (onBorder) {
+			/* less optimal case here */
+			Mem_Set(chunk, BLOCK_AIR, EXTCHUNK_SIZE_3 * sizeof(BlockID));
+			allSolid = ReadBorderChunkData(x1, y1, z1, &allAir);
+		} else {
+			allSolid = ReadChunkData(x1, y1, z1, &allAir);
+		}
 	}
 
 	info->allAir = allAir;
@@ -453,10 +484,10 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	}
 
 #if CC_GFX_BACKEND == CC_GFX_BACKEND_GL11
-	cIndex = World_ChunkPack(x1 >> CHUNK_SHIFT, y1 >> CHUNK_SHIFT, z1 >> CHUNK_SHIFT);
+	cIndex = info->slotIndex;
 
 	for (index = 0; index < MapRenderer_1DUsedCount; index++) {
-		int curIdx = cIndex + index * World.ChunksCount;
+		int curIdx = cIndex + index * MapRenderer_ChunksCount;
 
 		BuildPartVbs(&MapRenderer_PartsNormal[curIdx]);
 		BuildPartVbs(&MapRenderer_PartsTranslucent[curIdx]);
