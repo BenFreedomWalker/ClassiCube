@@ -441,7 +441,7 @@ static void ClassicLighting_SetActive(void) {
 *---------------------------------------------------Lighting component----------------------------------------------------*
 *#########################################################################################################################*/
 static void Lighting_ApplyActive(void) {
-	if (Lighting_Mode != LIGHTING_MODE_CLASSIC) {
+	if (!World.Infinite && Lighting_Mode != LIGHTING_MODE_CLASSIC) {
 		FancyLighting_SetActive();
 	} else {
 		ClassicLighting_SetActive();
@@ -478,7 +478,10 @@ static void OnInit(void) {
 	Event_Register_(&WorldEvents.LightingModeChanged, NULL, Lighting_HandleModeChanged);
 }
 static void OnReset(void)        { Lighting.FreeState(); }
-static void OnNewMapLoaded(void) { Lighting.AllocState(); }
+static void OnNewMapLoaded(void) {
+	Lighting_ApplyActive();
+	Lighting.AllocState();
+}
 
 struct IGameComponent Lighting_Component = {
 	OnInit,  /* Init  */
