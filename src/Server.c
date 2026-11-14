@@ -158,7 +158,13 @@ static void SPConnection_BeginConnect(void) {
 	seed = Random_Next(&rnd, Int32_MaxValue);
 
 	if (infinite) {
+		struct LocationUpdate update;
 		World_SetInfiniteMap(seed, 64);
+		update.flags = LU_HAS_POS | LU_HAS_YAW | LU_HAS_PITCH;
+		update.pos = LocalPlayer_CalcDefaultSpawn(Entities.CurPlayer);
+		update.yaw = 0.0f;
+		update.pitch = 0.0f;
+		LocalPlayers_MoveToSpawn(&update);
 		return;
 	}
 	Gen_Start(gen, seed, horSize, verSize, horSize);
