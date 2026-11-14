@@ -34,7 +34,8 @@ struct ChunkPartInfo {
 
 /* Describes data necessary for rendering a chunk. */
 struct ChunkInfo {	
-	cc_uint16 centreX, centreY, centreZ; /* Centre coordinates of the chunk */
+	/* Signed world-space centre coordinates. Infinite worlds need negative positions. */
+	cc_int32 centreX, centreY, centreZ;
 
 	cc_uint8 visible : 1; /* Whether chunk is visible to the player */
 	cc_uint8 empty   : 1; /* Whether chunk is empty of data and is known to have no data */
