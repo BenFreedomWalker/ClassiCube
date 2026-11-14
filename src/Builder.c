@@ -437,9 +437,15 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	Lighting.LightHint(x1 - 1, y1 - 1, z1 - 1);
 
 	Mem_Set(counts, 1, CHUNK_SIZE_3 * FACE_COUNT);
-	xMax = min(World.Width,  x1 + CHUNK_SIZE);
-	yMax = min(World.Height, y1 + CHUNK_SIZE);
-	zMax = min(World.Length, z1 + CHUNK_SIZE);
+	if (World.Infinite) {
+		xMax = x1 + CHUNK_SIZE;
+		yMax = min(World.Height, y1 + CHUNK_SIZE);
+		zMax = z1 + CHUNK_SIZE;
+	} else {
+		xMax = min(World.Width,  x1 + CHUNK_SIZE);
+		yMax = min(World.Height, y1 + CHUNK_SIZE);
+		zMax = min(World.Length, z1 + CHUNK_SIZE);
+	}
 
 	Builder_ChunkEndX = xMax; Builder_ChunkEndZ = zMax;
 	PrepareChunk(x1, y1, z1);
