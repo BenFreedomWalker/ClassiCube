@@ -67,9 +67,10 @@ static int ClassicLighting_CalcHeightAt(int x, int maxY, int z, int hIndex) {
 }
 
 int ClassicLighting_GetLightHeight(int x, int z) {
+	int hIndex, lightH;
 	if (World.Infinite) return -10;
-	int hIndex = Lighting_Pack(x, z);
-	int lightH = classic_heightmap[hIndex];
+	hIndex = Lighting_Pack(x, z);
+	lightH = classic_heightmap[hIndex];
 	return lightH == HEIGHT_UNCALCULATED ? ClassicLighting_CalcHeightAt(x, World.Height - 1, z, hIndex) : lightH;
 }
 
@@ -264,8 +265,9 @@ static void ClassicLighting_RefreshAffected(int x, int y, int z, BlockID block, 
 
 void ClassicLighting_OnBlockChanged(int x, int y, int z, BlockID oldBlock, BlockID newBlock) {
 	int hIndex = Lighting_Pack(x, z);
-	int lightH = classic_heightmap[hIndex];
-	int newHeight;
+	int lightH, newHeight;
+	if (World.Infinite) return;
+	lightH = classic_heightmap[hIndex];
 
 	/* Since light wasn't checked to begin with, means column never had meshes for any of its chunks built. */
 	/* So we don't need to do anything. */
