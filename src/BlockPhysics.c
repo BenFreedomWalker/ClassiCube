@@ -144,7 +144,7 @@ static cc_bool Physics_IsEdgeWater(int x, int y, int z) {
 void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 	PhysicsHandler handler;
 	int index;
-	if (!Physics.Enabled) return;
+	if (!Physics.Enabled || World.Infinite) return;
 
 	if (now == BLOCK_AIR && Physics_IsEdgeWater(x, y, z)) {
 		now = BLOCK_STILL_WATER;
