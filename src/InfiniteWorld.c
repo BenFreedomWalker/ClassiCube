@@ -150,30 +150,50 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 		}
 	}
 }
-/* Small plants are selected from absolute coordinates so chunk borders do
-   not change their placement when neighbouring chunks load later. */
+/* Flower patches are anchored to an absolute 8x8 world grid. Each chunk
+   checks a small halo of patch origins, so a cluster crossing a chunk edge
+   appears identically regardless of which chunk is generated first. */
 static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
-	int x, z, worldX, worldZ, surface, y, index;
-	cc_uint32 hash;
-	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
-		worldZ = (int)(baseZ + z);
-		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
-			worldX = (int)(baseX + x);
-			hash = InfiniteWorld_Hash(seed ^ 0x6A09E667u, worldX, worldZ);
-			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
-			if ((hash & 127u) >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 4u : 1u)) continue;
-			if (surface <= INFINITE_WORLD_WATER_LEVEL ||
-				InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
-				InfiniteWorld_IsBeach(surface) ||
-				InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) continue;
-			y = surface + 1;
-			if (y >= INFINITE_WORLD_HEIGHT) continue;
-			index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
-				+ z * INFINITE_WORLD_CHUNK_SIZE + x;
-			if (blocks[index] != BLOCK_AIR) continue;
-			blocks[index] = (hash & 256u) ? BLOCK_ROSE : BLOCK_DANDELION;
+	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 gx, gz;
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 3, 8);
+	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 2, 8);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 3, 8);
+	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 2, 8);
+	int attempt;
+	for (gz = minGZ; gz <= maxGZ; gz++) {
+		for (gx = minGX; gx <= maxGX; gx++) {
+			cc_uint32 anchorHash;
+			cc_int64 anchorX, anchorZ;
+			if (gx < -268435456LL || gx > 268435455LL ||
+				gz < -268435456LL || gz > 268435455LL) continue;
+			anchorHash = InfiniteWorld_Hash(seed ^ 0x6A09E667u, (int)gx, (int)gz);
+			anchorX = gx * 8 + (anchorHash & 7u);
+			anchorZ = gz * 8 + ((anchorHash >> 3) & 7u);
+			for (attempt = 0; attempt < 8; attempt++) {
+				cc_uint32 offsetHash = anchorHash ^ (cc_uint32)(attempt * 0x85EBCA77u);
+				int worldX = (int)anchorX + (int)(offsetHash & 7u) - 3;
+				int worldZ = (int)anchorZ + (int)((offsetHash >> 8) & 7u) - 3;
+				cc_uint32 hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
+				int surface, y, x, z, index;
+				if (worldX < baseX || worldX >= endX || worldZ < baseZ || worldZ >= endZ) continue;
+				surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+				if (surface <= INFINITE_WORLD_WATER_LEVEL ||
+					InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
+					InfiniteWorld_IsBeach(surface) ||
+					InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) continue;
+				y = surface + 1;
+				if (y >= INFINITE_WORLD_HEIGHT) continue;
+				x = worldX - (int)baseX; z = worldZ - (int)baseZ;
+				index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+					+ z * INFINITE_WORLD_CHUNK_SIZE + x;
+				if (blocks[index] != BLOCK_AIR ||
+					blocks[index - INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE] != BLOCK_GRASS) continue;
+				blocks[index] = (hash & 0x100u) ? BLOCK_ROSE : BLOCK_DANDELION;
+			}
 		}
 	}
 }
