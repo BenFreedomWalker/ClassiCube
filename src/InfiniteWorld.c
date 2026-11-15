@@ -753,11 +753,18 @@ static void InfiniteWorld_CompactChunks(void) {
 	cc_uint32 capacity;
 
 	if (InfiniteWorld_ChunksCount < InfiniteWorld_NextCompactAt) return;
-	InfiniteWorld_NextCompactAt = InfiniteWorld_ChunksCount + 1024;
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
 		if (InfiniteWorld_Chunks[i].blocks || InfiniteWorld_Chunks[i].modified) live++;
 	}
-	if (live * 2 >= InfiniteWorld_ChunksCount) return;
+	/* If most records are still live, defer the next full scan until the
+	   index has doubled instead of rescanning it every 1024 new chunks. */
+	if (live * 2 >= InfiniteWorld_ChunksCount) {
+		InfiniteWorld_NextCompactAt = InfiniteWorld_ChunksCount > Int32_MaxValue / 2
+			? Int32_MaxValue : InfiniteWorld_ChunksCount * 2;
+		return;
+	}
+	InfiniteWorld_NextCompactAt = InfiniteWorld_ChunksCount > Int32_MaxValue - 1024
+		? Int32_MaxValue : InfiniteWorld_ChunksCount + 1024;
 
 	capacity = 32;
 	while (capacity < (cc_uint32)live * 2) {
