@@ -385,7 +385,13 @@ static void BuildChunk(struct ChunkInfo* chunk, int* chunkUpdates) {
 
 	Game.ChunkUpdates++;
 	(*chunkUpdates)++;
-	if (!Builder_MakeChunk(chunk)) return;
+	if (!Builder_MakeChunk(chunk)) {
+		/* Metadata was written before vertex-buffer allocation. Failed builds
+		   must not leave parts that DeleteChunk would count as registered. */
+		chunk->normalParts = NULL;
+		chunk->translucentParts = NULL;
+		return;
+	}
 
 	chunk->dirty  = false;
 	chunk->noData = !chunk->normalParts && !chunk->translucentParts;
