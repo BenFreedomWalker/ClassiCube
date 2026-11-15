@@ -431,7 +431,8 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME];
 	int i;
 #endif
-	cc_uint32 count, n;
+	cc_uint32 count, n, position, length;
+	cc_uint64 recordSize, required;
 	int seed, chunkX, chunkZ;
 	struct InfiniteWorld_Chunk* chunk;
 	cc_result res;
@@ -441,6 +442,15 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	if (InfiniteWorld_ReadU32(&header[8]) != INFINITE_WORLD_HEIGHT) return ERR_INVALID_ARGUMENT;
 	count = InfiniteWorld_ReadU32(&header[12]);
 	if (count > 1000000u) return ERR_INVALID_ARGUMENT;
+	recordSize = 8 + INFINITE_WORLD_CHUNK_VOLUME;
+#ifdef EXTENDED_BLOCKS
+	recordSize += INFINITE_WORLD_CHUNK_VOLUME;
+#endif
+	/* Reject truncated files before replacing the currently loaded world. */
+	if (!stream->Position(stream, &position) && !stream->Length(stream, &length)) {
+		required = (cc_uint64)count * recordSize;
+		if (position > length || required > (cc_uint64)(length - position)) return ERR_END_OF_STREAM;
+	}
 	World_SetInfiniteMap(seed, INFINITE_WORLD_HEIGHT);
 	for (n = 0; n < count; n++) {
 		if ((res = Stream_Read(stream, coords, sizeof(coords)))) return res;
