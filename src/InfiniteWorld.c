@@ -743,6 +743,86 @@ cc_result InfiniteWorld_Save(struct Stream* stream) {
 	}
 	return 0;
 }
+struct InfiniteWorld_ChunkCoordPair { int x, z; };
+
+static cc_bool InfiniteWorld_ChunkCoordLess(const struct InfiniteWorld_ChunkCoordPair* a,
+		const struct InfiniteWorld_ChunkCoordPair* b) {
+	return a->x < b->x || (a->x == b->x && a->z < b->z);
+}
+
+/* In-place heapsort keeps duplicate detection bounded to one coordinate pair
+   per saved chunk, even for the maximum supported save size. */
+static void InfiniteWorld_SortChunkCoords(struct InfiniteWorld_ChunkCoordPair* coords, cc_uint32 count) {
+	cc_uint32 root, end;
+	for (root = count / 2; root > 0; ) {
+		cc_uint32 parent = --root;
+		for (;;) {
+			cc_uint32 child = parent * 2 + 1;
+			struct InfiniteWorld_ChunkCoordPair tmp;
+			if (child >= count) break;
+			if (child + 1 < count && InfiniteWorld_ChunkCoordLess(&coords[child], &coords[child + 1])) child++;
+			if (!InfiniteWorld_ChunkCoordLess(&coords[parent], &coords[child])) break;
+			tmp = coords[parent]; coords[parent] = coords[child]; coords[child] = tmp;
+			parent = child;
+		}
+	}
+	for (end = count; end > 1; ) {
+		cc_uint32 limit = --end, parent = 0;
+		struct InfiniteWorld_ChunkCoordPair tmp = coords[0];
+		coords[0] = coords[limit]; coords[limit] = tmp;
+		for (;;) {
+			cc_uint32 child = parent * 2 + 1;
+			if (child >= limit) break;
+			if (child + 1 < limit && InfiniteWorld_ChunkCoordLess(&coords[child], &coords[child + 1])) child++;
+			if (!InfiniteWorld_ChunkCoordLess(&coords[parent], &coords[child])) break;
+			tmp = coords[parent]; coords[parent] = coords[child]; coords[child] = tmp;
+			parent = child;
+		}
+	}
+}
+
+/* Validate all coordinates before replacing the active world. Streams that
+   cannot seek retain the normal loader path; seekable streams get the full
+   duplicate/bounds check without changing the ICW1 record layout. */
+static cc_result InfiniteWorld_PreflightRecords(struct Stream* stream, cc_uint32 count,
+		cc_uint32 payloadSize) {
+	struct InfiniteWorld_ChunkCoordPair* coords;
+	cc_uint8 bytes[8];
+	cc_uint32 position, n;
+	cc_result res = 0, seekRes;
+	if (stream->Position(stream, &position)) return 0;
+	if (stream->Seek(stream, position)) return 0;
+	if (!count) return 0;
+	coords = (struct InfiniteWorld_ChunkCoordPair*)Mem_TryAlloc(count, sizeof(struct InfiniteWorld_ChunkCoordPair));
+	if (!coords) return ERR_OUT_OF_MEMORY;
+
+	for (n = 0; n < count; n++) {
+		int x, z;
+		if ((res = Stream_Read(stream, bytes, sizeof(bytes)))) break;
+		x = (int)(cc_int32)InfiniteWorld_ReadU32(&bytes[0]);
+		z = (int)(cc_int32)InfiniteWorld_ReadU32(&bytes[4]);
+		if (x < -134217728 || x > 134217727 || z < -134217728 || z > 134217727) {
+			res = ERR_INVALID_ARGUMENT;
+			break;
+		}
+		coords[n].x = x;
+		coords[n].z = z;
+		if ((res = stream->Skip(stream, payloadSize))) break;
+	}
+	if (!res) {
+		InfiniteWorld_SortChunkCoords(coords, count);
+		for (n = 1; n < count; n++) {
+			if (coords[n - 1].x == coords[n].x && coords[n - 1].z == coords[n].z) {
+				res = ERR_INVALID_ARGUMENT;
+				break;
+			}
+		}
+	}
+	seekRes = stream->Seek(stream, position);
+	Mem_Free(coords);
+	return seekRes ? seekRes : res;
+}
+
 cc_result InfiniteWorld_Load(struct Stream* stream) {
 	cc_uint8 header[16], coords[8];
 #ifdef EXTENDED_BLOCKS
@@ -769,16 +849,17 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		required = (cc_uint64)count * recordSize;
 		if (position > length || required > (cc_uint64)(length - position)) return ERR_END_OF_STREAM;
 	}
+	/* Bounds and duplicate checks must also happen before the active world is
+	   replaced. The preflight rewinds on completion, ready for the real load. */
+	if ((res = InfiniteWorld_PreflightRecords(stream, count, (cc_uint32)(recordSize - 8)))) return res;
 	World_SetInfiniteMap(seed, INFINITE_WORLD_HEIGHT);
 	for (n = 0; n < count; n++) {
 		if ((res = Stream_Read(stream, coords, sizeof(coords)))) return res;
 		chunkX = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[0]);
 		chunkZ = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[4]);
-		/* Reject chunk coordinates whose 16-block extent exceeds signed block space. */
+		/* Keep the checks for non-seekable streams, which cannot be preflighted. */
 		if (chunkX < -134217728 || chunkX > 134217727 ||
 			chunkZ < -134217728 || chunkZ > 134217727) return ERR_INVALID_ARGUMENT;
-		/* A chunk may appear only once in a save; duplicates make its
-		   declared record count ambiguous and can hide earlier block data. */
 		if (InfiniteWorld_FindChunk(chunkX, chunkZ)) return ERR_INVALID_ARGUMENT;
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
 		if (!chunk) return ERR_OUT_OF_MEMORY;
