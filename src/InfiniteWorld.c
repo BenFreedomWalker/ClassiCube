@@ -141,6 +141,32 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 		}
 	}
 }
+/* Small plants are selected from absolute coordinates so chunk borders do
+   not change their placement when neighbouring chunks load later. */
+static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	int x, z, worldX, worldZ, surface, y, index;
+	cc_uint32 hash;
+	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
+		worldZ = (int)(baseZ + z);
+		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
+			worldX = (int)(baseX + x);
+			hash = InfiniteWorld_Hash(seed ^ 0x6A09E667u, worldX, worldZ);
+			if ((hash & 127u) != 0u) continue;
+			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			if (surface <= INFINITE_WORLD_WATER_LEVEL ||
+				InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
+				InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) continue;
+			y = surface + 1;
+			if (y >= INFINITE_WORLD_HEIGHT) continue;
+			index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+				+ z * INFINITE_WORLD_CHUNK_SIZE + x;
+			if (blocks[index] != BLOCK_AIR) continue;
+			blocks[index] = (hash & 256u) ? BLOCK_ROSE : BLOCK_DANDELION;
+		}
+	}
+}
 /* Ore clusters use a fixed 8-block 3D grid. Each chunk evaluates the
    neighbouring cluster centres too, keeping veins continuous at edges. */
 static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor) {
@@ -311,6 +337,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	InfiniteWorld_GenerateCaves(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
+	InfiniteWorld_GenerateFlowers(seed, chunkX, chunkZ, blocks);
 	return true;
 }
 
