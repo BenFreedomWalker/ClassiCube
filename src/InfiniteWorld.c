@@ -409,8 +409,8 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	return true;
 }
 
-/* Modified chunks stay resident until saved. Generated-only chunk block arrays
-   use a bounded cache; their terrain can always be regenerated from the seed. */
+/* Modified chunks can be stored as sparse differences from seed terrain.
+   Dense block arrays use a bounded resident cache; base terrain is reproducible. */
 struct InfiniteWorld_ChunkEdit {
 	cc_uint16 index, block;
 };
@@ -666,13 +666,14 @@ static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIn
 static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep) {
 	while (InfiniteWorld_ResidentChunks > INFINITE_WORLD_MAX_RESIDENT_CHUNKS) {
 		int attempts = InfiniteWorld_ResidentChunks;
+		cc_uint64 cutoff = InfiniteWorld_AccessCounter;
 		cc_bool evicted = false;
 		while (attempts-- > 0) {
 			struct InfiniteWorld_Chunk* oldest = NULL;
 			int i;
 			for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
 				struct InfiniteWorld_Chunk* candidate = &InfiniteWorld_Chunks[i];
-				if (!candidate->blocks || candidate == keep ||
+				if (!candidate->blocks || candidate == keep || candidate->lastUsed > cutoff ||
 					(candidate->modified && candidate->compressionBlocked)) continue;
 				if (!oldest || candidate->lastUsed < oldest->lastUsed) oldest = candidate;
 			}
