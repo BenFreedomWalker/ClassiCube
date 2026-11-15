@@ -68,7 +68,7 @@ static cc_bool InfiniteWorld_IsSnowy(int seed, int x, int z, int surface) {
 /* Broad forest regions add a distinct vegetation density without changing
    the underlying terrain height or the placement of neighbouring chunks. */
 static cc_bool InfiniteWorld_IsForest(int seed, int x, int z) {
-	return InfiniteWorld_Noise(seed ^ 0x3C6EF372u, x, z, 160) > 20;
+	return InfiniteWorld_Noise(seed ^ 0x1B873593u, x, z, 160) > 20;
 }
 
 /* Low terrain near the waterline forms sandy beaches and shallow seabeds. */
