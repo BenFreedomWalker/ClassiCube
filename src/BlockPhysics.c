@@ -160,23 +160,26 @@ static cc_bool InfinitePhysics_IsReplaceable(BlockID block) {
 }
 
 static void InfinitePhysics_Fall(int x, int y, int z) {
-	BlockID block = World_GetBlock(x, y, z);
-	int destY = y;
+	int currentY = y;
 
-	if (!InfinitePhysics_IsFalling(block)) return;
+	/* Process stacked falling blocks iteratively to avoid recursive calls. */
+	while (currentY < World.Height) {
+		BlockID block = World_GetBlock(x, currentY, z);
+		int destY = currentY;
 
-	/* Search down through air and liquids, stopping at the first solid block. */
-	while (destY > 0 && InfinitePhysics_IsReplaceable(World_GetBlock(x, destY - 1, z))) {
-		destY--;
-	}
-	if (destY == y) return;
+		if (!InfinitePhysics_IsFalling(block)) return;
 
-	Game_UpdateBlock(x, y, z, BLOCK_AIR);
-	Game_UpdateBlock(x, destY, z, block);
+		/* Search down through air and liquids, stopping at the first solid block. */
+		while (destY > 0 && InfinitePhysics_IsReplaceable(World_GetBlock(x, destY - 1, z))) {
+			destY--;
+		}
+		if (destY == currentY) return;
 
-	/* A falling block may expose another falling block immediately above it. */
-	if (y + 1 < World.Height) {
-		InfinitePhysics_Fall(x, y + 1, z);
+		Game_UpdateBlock(x, currentY, z, BLOCK_AIR);
+		Game_UpdateBlock(x, destY, z, block);
+
+		/* The move may expose another falling block directly above it. */
+		currentY++;
 	}
 }
 
