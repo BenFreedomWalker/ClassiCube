@@ -443,6 +443,7 @@
     <ClInclude Include="Widgets.h" />
     <ClInclude Include="Window.h" />
     <ClInclude Include="World.h" />
+    <ClInclude Include="InfiniteWorld.h" />
     <ClInclude Include="_AudioBase.h" />
     <ClInclude Include="_GLShared.h" />
     <ClInclude Include="_GraphicsBase.h" />
@@ -642,6 +643,7 @@
     <ClCompile Include="Window_Terminal.c" />
     <ClCompile Include="Window_Win.c" />
     <ClCompile Include="World.c" />
+    <ClCompile Include="InfiniteWorld.c" />
     <ClCompile Include="_autofit.c" />
     <ClCompile Include="_cff.c" />
     <ClCompile Include="_ftbase.c" />

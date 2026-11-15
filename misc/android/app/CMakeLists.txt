@@ -46,6 +46,7 @@ add_library(classicube SHARED
         ../../src/Vorbis.c
         ../../src/Protocol.c
         ../../src/World.c
+        ../../src/InfiniteWorld.c
         ../../src/SelOutlineRenderer.c
         ../../src/Platform_Posix.c
         ../../src/LScreens.c

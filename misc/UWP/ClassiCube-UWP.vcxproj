@@ -299,6 +299,7 @@
     <ClCompile Include="..\..\src\Vorbis.c" />
     <ClCompile Include="..\..\src\Widgets.c" />
     <ClCompile Include="..\..\src\World.c" />
+    <ClCompile Include="..\..\src\InfiniteWorld.c" />
     <ClCompile Include="..\..\third_party\bearssl\aesctr_drbg.c" />
     <ClCompile Include="..\..\third_party\bearssl\aes_big_cbcdec.c" />
     <ClCompile Include="..\..\third_party\bearssl\aes_big_cbcenc.c" />

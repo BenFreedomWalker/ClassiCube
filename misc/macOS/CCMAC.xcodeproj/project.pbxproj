@@ -48,6 +48,7 @@
 		9AC3D3AA2E12909D00A38E91 /* Animations.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D2712E12909B00A38E91 /* Animations.c */; };
 		9AC3D3AB2E12909D00A38E91 /* _psmodule.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D2722E12909B00A38E91 /* _psmodule.c */; };
 		9AC3D3AD2E12909D00A38E91 /* World.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D2742E12909B00A38E91 /* World.c */; };
+		B26F00000000000000000001 /* InfiniteWorld.c in Sources */ = {isa = PBXBuildFile; fileRef = B26F00000000000000000002 /* InfiniteWorld.c */; };
 		9AC3D3AE2E12909D00A38E91 /* _sfnt.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D2752E12909B00A38E91 /* _sfnt.c */; };
 		9AC3D3B62E12909D00A38E91 /* _ftbitmap.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D27F2E12909B00A38E91 /* _ftbitmap.c */; };
 		9AC3D3B72E12909D00A38E91 /* Menus.c in Sources */ = {isa = PBXBuildFile; fileRef = 9AC3D2802E12909B00A38E91 /* Menus.c */; };
@@ -268,6 +269,8 @@
 		9AC3D2712E12909B00A38E91 /* Animations.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Animations.c; sourceTree = "<group>"; };
 		9AC3D2722E12909B00A38E91 /* _psmodule.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = _psmodule.c; sourceTree = "<group>"; };
 		9AC3D2742E12909B00A38E91 /* World.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = World.c; sourceTree = "<group>"; };
+		B26F00000000000000000002 /* InfiniteWorld.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = InfiniteWorld.c; sourceTree = "<group>"; };
+		B26F00000000000000000003 /* InfiniteWorld.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InfiniteWorld.h; sourceTree = "<group>"; };
 		9AC3D2752E12909B00A38E91 /* _sfnt.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = _sfnt.c; sourceTree = "<group>"; };
 		9AC3D27F2E12909B00A38E91 /* _ftbitmap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = _ftbitmap.c; sourceTree = "<group>"; };
 		9AC3D2802E12909B00A38E91 /* Menus.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Menus.c; sourceTree = "<group>"; };
@@ -563,6 +566,8 @@
 				9AC3D3222E12909C00A38E91 /* Widgets.c */,
 				9AC3D3142E12909C00A38E91 /* Window_Terminal.c */,
 				9AC3D2742E12909B00A38E91 /* World.c */,
+				B26F00000000000000000002 /* InfiniteWorld.c */,
+				B26F00000000000000000003 /* InfiniteWorld.h */,
 			);
 			name = src;
 			path = ../../src;
@@ -803,6 +808,7 @@
 				9AC3D4DF2E12921400A38E91 /* i31_iszero.c in Sources */,
 				9AC3D4002E12909D00A38E91 /* Camera.c in Sources */,
 				9AC3D3AD2E12909D00A38E91 /* World.c in Sources */,
+				B26F00000000000000000001 /* InfiniteWorld.c in Sources */,
 				9AC3D4FE2E12921400A38E91 /* rsa_default_pkcs1_vrfy.c in Sources */,
 				9AC3D4EC2E12921400A38E91 /* poly1305_ctmul.c in Sources */,
 				9AC3D4ED2E12921400A38E91 /* hmac_ct.c in Sources */,
