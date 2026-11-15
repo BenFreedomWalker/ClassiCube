@@ -103,7 +103,7 @@ int InfiniteWorld_LocalCoord(int blockCoord) {
 
 /* Trees are derived from absolute X/Z coordinates, including a two-block halo,
    so canopies crossing chunk boundaries are generated consistently. */
-static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockRaw* blocks, const cc_uint8* surfaceHeights) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 xEnd = baseX + INFINITE_WORLD_CHUNK_SIZE;
@@ -118,7 +118,11 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 				anchorZ < Int32_MinValue || anchorZ > Int32_MaxValue) continue;
 			x = (int)anchorX; z = (int)anchorZ;
 			hash = InfiniteWorld_Hash(seed ^ 0x2C9277B5u, x, z);
-			surface = InfiniteWorld_SurfaceHeight(seed, x, z);
+			if (anchorX >= baseX && anchorX < xEnd && anchorZ >= baseZ && anchorZ < zEnd) {
+				surface = surfaceHeights[(int)(anchorZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(anchorX - baseX)];
+			} else {
+				surface = InfiniteWorld_SurfaceHeight(seed, x, z);
+			}
 			if (surface <= INFINITE_WORLD_WATER_LEVEL || InfiniteWorld_IsDesert(seed, x, z) ||
 				InfiniteWorld_IsBeach(surface)) continue;
 			forest = InfiniteWorld_IsForest(seed, x, z);
@@ -155,7 +159,7 @@ static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor);
 /* Flower patches are anchored to an absolute 16x16 world grid. Each chunk
    checks a small halo of patch origins, so a cluster crossing a chunk edge
    appears identically regardless of which chunk is generated first. */
-static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, BlockRaw* blocks, const cc_uint8* surfaceHeights) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
@@ -185,16 +189,16 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 					candidateZ < Int32_MinValue || candidateZ > Int32_MaxValue) continue;
 				if (candidateX < baseX || candidateX >= endX || candidateZ < baseZ || candidateZ >= endZ) continue;
 				worldX = (int)candidateX; worldZ = (int)candidateZ;
+				x = worldX - (int)baseX; z = worldZ - (int)baseZ;
 				if (attempt >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 4 : 2)) continue;
 				hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
-				surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+				surface = surfaceHeights[z * INFINITE_WORLD_CHUNK_SIZE + x];
 				if (surface <= INFINITE_WORLD_WATER_LEVEL ||
 					InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
 					InfiniteWorld_IsBeach(surface) ||
 					InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) continue;
 				y = surface + 1;
 				if (y >= INFINITE_WORLD_HEIGHT) continue;
-				x = worldX - (int)baseX; z = worldZ - (int)baseZ;
 				index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
 					+ z * INFINITE_WORLD_CHUNK_SIZE + x;
 				if (blocks[index] != BLOCK_AIR ||
@@ -405,8 +409,8 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	}
 	InfiniteWorld_GenerateCaves(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
-	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
-	InfiniteWorld_GenerateFlowers(seed, chunkX, chunkZ, blocks);
+	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks, surfaceHeights);
+	InfiniteWorld_GenerateFlowers(seed, chunkX, chunkZ, blocks, surfaceHeights);
 	InfiniteWorld_GenerateMushrooms(seed, chunkX, chunkZ, blocks, surfaceHeights);
 	return true;
 }
