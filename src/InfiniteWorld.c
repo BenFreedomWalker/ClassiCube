@@ -241,7 +241,8 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 							index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
 								+ (int)(worldZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(worldX - baseX);
 							if (blocks[index] == BLOCK_STONE || blocks[index] == BLOCK_DIRT) {
-								blocks[index] = BLOCK_AIR;
+								/* Low cave sections intersect the deterministic aquifer table. */
+								blocks[index] = y <= 12 ? BLOCK_STILL_WATER : BLOCK_AIR;
 							}
 						}
 					}
