@@ -80,6 +80,52 @@ int InfiniteWorld_LocalCoord(int blockCoord) {
 	return local < 0 ? local + INFINITE_WORLD_CHUNK_SIZE : local;
 }
 
+/* Trees are derived from absolute X/Z coordinates, including a two-block halo,
+   so canopies crossing chunk boundaries are generated consistently. */
+static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 anchorX, anchorZ, leafX, leafZ;
+	int x0 = (int)baseX, z0 = (int)baseZ;
+	for (anchorZ = baseZ - 2; anchorZ <= baseZ + INFINITE_WORLD_CHUNK_SIZE + 1; anchorZ++) {
+		for (anchorX = baseX - 2; anchorX <= baseX + INFINITE_WORLD_CHUNK_SIZE + 1; anchorX++) {
+			cc_uint32 hash;
+			int x, z, surface, height, top, y, radius, index;
+			if (anchorX < Int32_MinValue || anchorX > Int32_MaxValue ||
+				anchorZ < Int32_MinValue || anchorZ > Int32_MaxValue) continue;
+			x = (int)anchorX; z = (int)anchorZ;
+			hash = InfiniteWorld_Hash(seed ^ 0x2C9277B5u, x, z);
+			if ((hash & 255u) >= 2u) continue;
+			surface = InfiniteWorld_SurfaceHeight(seed, x, z);
+			if (surface <= INFINITE_WORLD_WATER_LEVEL) continue;
+			height = 5 + (int)((hash >> 8) % 3u);
+			top = surface + height;
+			if (top + 1 >= INFINITE_WORLD_HEIGHT) continue;
+			/* Trunks may replace leaves from an overlapping tree. */
+			if (x >= x0 && x < x0 + INFINITE_WORLD_CHUNK_SIZE &&
+				z >= z0 && z < z0 + INFINITE_WORLD_CHUNK_SIZE) {
+				for (y = surface + 1; y < top; y++) {
+					index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+						+ (z - z0) * INFINITE_WORLD_CHUNK_SIZE + (x - x0);
+					if (blocks[index] == BLOCK_AIR || blocks[index] == BLOCK_LEAVES) blocks[index] = BLOCK_LOG;
+				}
+			}
+			for (y = top - 2; y <= top + 1; y++) {
+				radius = y >= top ? 1 : 2;
+				for (leafZ = anchorZ - radius; leafZ <= anchorZ + radius; leafZ++) {
+					for (leafX = anchorX - radius; leafX <= anchorX + radius; leafX++) {
+						if (leafX < x0 || leafX >= x0 + INFINITE_WORLD_CHUNK_SIZE ||
+							leafZ < z0 || leafZ >= z0 + INFINITE_WORLD_CHUNK_SIZE || y < 0 || y >= INFINITE_WORLD_HEIGHT) continue;
+						x = (int)leafX; z = (int)leafZ;
+						index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+							+ (z - z0) * INFINITE_WORLD_CHUNK_SIZE + (x - x0);
+						if (blocks[index] == BLOCK_AIR) blocks[index] = BLOCK_LEAVES;
+					}
+				}
+			}
+		}
+	}
+}
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
@@ -113,6 +159,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			}
 		}
 	}
+	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
 	return true;
 }
 
