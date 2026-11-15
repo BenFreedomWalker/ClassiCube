@@ -411,14 +411,20 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 
 /* Modified chunks stay resident until saved. Generated-only chunk block arrays
    use a bounded cache; their terrain can always be regenerated from the seed. */
+struct InfiniteWorld_ChunkEdit {
+	cc_uint16 index, block;
+};
+
 struct InfiniteWorld_Chunk {
 	int x, z;
-	cc_bool modified;
+	cc_bool modified, compressionBlocked;
 	cc_uint64 lastUsed;
 	BlockRaw* blocks;
 #ifdef EXTENDED_BLOCKS
 	BlockRaw* blocks2;
 #endif
+	struct InfiniteWorld_ChunkEdit* edits;
+	cc_uint32 editCount;
 };
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_Chunks;
@@ -433,6 +439,144 @@ static int InfiniteWorld_NextCompactAt = 4096;
 /* Keep the full 21x21x4 renderer window resident, with room for border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 
+/* Rebuilds a dense chunk from its deterministic base terrain and sparse edits. */
+static cc_bool InfiniteWorld_CreateChunkData(int chunkX, int chunkZ,
+		const struct InfiniteWorld_ChunkEdit* edits, cc_uint32 editCount,
+		BlockRaw** blocksOut, BlockRaw** blocks2Out) {
+	BlockRaw* blocks;
+	BlockRaw* blocks2 = NULL;
+	cc_uint32 i;
+	*blocksOut = NULL;
+	*blocks2Out = NULL;
+	blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+	if (!blocks) return false;
+	if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunkX, chunkZ, blocks)) {
+		Mem_Free(blocks);
+		return false;
+	}
+#ifdef EXTENDED_BLOCKS
+	for (i = 0; i < editCount; i++) {
+		if (edits[i].block > 255) {
+			blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+			if (!blocks2) {
+				Mem_Free(blocks);
+				return false;
+			}
+			break;
+		}
+	}
+#endif
+	for (i = 0; i < editCount; i++) {
+		cc_uint32 index = edits[i].index;
+		if (index >= INFINITE_WORLD_CHUNK_VOLUME) {
+			Mem_Free(blocks);
+			Mem_Free(blocks2);
+			return false;
+		}
+		blocks[index] = (BlockRaw)edits[i].block;
+#ifdef EXTENDED_BLOCKS
+		if (blocks2) blocks2[index] = (BlockRaw)(edits[i].block >> 8);
+#endif
+	}
+	*blocksOut = blocks;
+	*blocks2Out = blocks2;
+	return true;
+}
+
+static cc_bool InfiniteWorld_MaterializeChunk(struct InfiniteWorld_Chunk* chunk) {
+	BlockRaw* blocks, *blocks2;
+	if (!InfiniteWorld_CreateChunkData(chunk->x, chunk->z, chunk->edits, chunk->editCount, &blocks, &blocks2)) return false;
+	chunk->blocks = blocks;
+#ifdef EXTENDED_BLOCKS
+	chunk->blocks2 = blocks2;
+#endif
+	Mem_Free(chunk->edits);
+	chunk->edits = NULL;
+	chunk->editCount = 0;
+	chunk->compressionBlocked = false;
+	InfiniteWorld_ResidentChunks++;
+	return true;
+}
+
+/* Converts a modified chunk to a compact list of differences from its seed terrain.
+   Dense edits remain resident; sparse edits can be reconstructed on demand. */
+static cc_bool InfiniteWorld_CompressModifiedChunk(struct InfiniteWorld_Chunk* chunk) {
+	BlockRaw* base;
+	struct InfiniteWorld_ChunkEdit* edits;
+	cc_uint32 i, count = 0, out = 0;
+	cc_uint64 denseBytes;
+#ifdef EXTENDED_BLOCKS
+	cc_bool hasUpper = false;
+#endif
+	base = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+	if (!base) return false;
+	if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunk->x, chunk->z, base)) {
+		Mem_Free(base);
+		return false;
+	}
+	for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+		cc_uint16 block = chunk->blocks[i];
+#ifdef EXTENDED_BLOCKS
+		if (chunk->blocks2) block |= (cc_uint16)(chunk->blocks2[i] << 8);
+		if (block > 255) hasUpper = true;
+#endif
+		if (block != (cc_uint16)base[i]) count++;
+	}
+	if (!count) {
+		Mem_Free(base);
+		Mem_Free(chunk->blocks);
+#ifdef EXTENDED_BLOCKS
+		Mem_Free(chunk->blocks2);
+		chunk->blocks2 = NULL;
+#endif
+		Mem_Free(chunk->edits);
+		chunk->edits = NULL;
+		chunk->editCount = 0;
+		chunk->blocks = NULL;
+		chunk->modified = false;
+		chunk->compressionBlocked = false;
+		InfiniteWorld_ResidentChunks--;
+		return true;
+	}
+	denseBytes = (cc_uint64)INFINITE_WORLD_CHUNK_VOLUME * sizeof(BlockRaw);
+#ifdef EXTENDED_BLOCKS
+	if (hasUpper) denseBytes += (cc_uint64)INFINITE_WORLD_CHUNK_VOLUME * sizeof(BlockRaw);
+#endif
+	if ((cc_uint64)count * sizeof(struct InfiniteWorld_ChunkEdit) >= (denseBytes * 3) / 4) {
+		Mem_Free(base);
+		chunk->compressionBlocked = true;
+		return false;
+	}
+	edits = (struct InfiniteWorld_ChunkEdit*)Mem_TryAlloc(count, sizeof(struct InfiniteWorld_ChunkEdit));
+	if (!edits) {
+		Mem_Free(base);
+		return false;
+	}
+	for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+		cc_uint16 block = chunk->blocks[i];
+#ifdef EXTENDED_BLOCKS
+		if (chunk->blocks2) block |= (cc_uint16)(chunk->blocks2[i] << 8);
+#endif
+		if (block == (cc_uint16)base[i]) continue;
+		edits[out].index = (cc_uint16)i;
+		edits[out].block = block;
+		out++;
+	}
+	Mem_Free(base);
+	Mem_Free(chunk->blocks);
+#ifdef EXTENDED_BLOCKS
+	Mem_Free(chunk->blocks2);
+	chunk->blocks2 = NULL;
+#endif
+	chunk->blocks = NULL;
+	Mem_Free(chunk->edits);
+	chunk->edits = edits;
+	chunk->editCount = count;
+	chunk->compressionBlocked = false;
+	InfiniteWorld_ResidentChunks--;
+	return true;
+}
+
 void InfiniteWorld_Reset(void) {
 	int i;
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
@@ -440,6 +584,7 @@ void InfiniteWorld_Reset(void) {
 #ifdef EXTENDED_BLOCKS
 		Mem_Free(InfiniteWorld_Chunks[i].blocks2);
 #endif
+		Mem_Free(InfiniteWorld_Chunks[i].edits);
 	}
 	Mem_Free(InfiniteWorld_Chunks);
 	Mem_Free(InfiniteWorld_ChunkSlots);
@@ -520,17 +665,36 @@ static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIn
 
 static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep) {
 	while (InfiniteWorld_ResidentChunks > INFINITE_WORLD_MAX_RESIDENT_CHUNKS) {
-		struct InfiniteWorld_Chunk* oldest = NULL;
-		int i;
-		for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
-			struct InfiniteWorld_Chunk* candidate = &InfiniteWorld_Chunks[i];
-			if (!candidate->blocks || candidate->modified || candidate == keep) continue;
-			if (!oldest || candidate->lastUsed < oldest->lastUsed) oldest = candidate;
+		int attempts = InfiniteWorld_ResidentChunks;
+		cc_bool evicted = false;
+		while (attempts-- > 0) {
+			struct InfiniteWorld_Chunk* oldest = NULL;
+			int i;
+			for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+				struct InfiniteWorld_Chunk* candidate = &InfiniteWorld_Chunks[i];
+				if (!candidate->blocks || candidate == keep ||
+					(candidate->modified && candidate->compressionBlocked)) continue;
+				if (!oldest || candidate->lastUsed < oldest->lastUsed) oldest = candidate;
+			}
+			if (!oldest) break;
+			if (oldest->modified) {
+				if (!InfiniteWorld_CompressModifiedChunk(oldest)) {
+					oldest->lastUsed = ++InfiniteWorld_AccessCounter;
+					continue;
+				}
+			} else {
+				Mem_Free(oldest->blocks);
+				oldest->blocks = NULL;
+#ifdef EXTENDED_BLOCKS
+				Mem_Free(oldest->blocks2);
+				oldest->blocks2 = NULL;
+#endif
+				InfiniteWorld_ResidentChunks--;
+			}
+			evicted = true;
+			break;
 		}
-		if (!oldest) break;
-		Mem_Free(oldest->blocks);
-		oldest->blocks = NULL;
-		InfiniteWorld_ResidentChunks--;
+		if (!evicted) break;
 	}
 }
 
@@ -581,21 +745,12 @@ static void InfiniteWorld_CompactChunks(void) {
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
 	struct InfiniteWorld_Chunk* chunk;
-	BlockRaw* blocks;
+	BlockRaw* blocks, *blocks2;
 	if (!InfiniteWorld_Active) return NULL;
 	InfiniteWorld_CompactChunks();
 	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
 	if (chunk) {
-		if (!chunk->blocks) {
-			blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
-			if (!blocks) return NULL;
-			if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunkX, chunkZ, blocks)) {
-				Mem_Free(blocks);
-				return NULL;
-			}
-			chunk->blocks = blocks;
-			InfiniteWorld_ResidentChunks++;
-		}
+		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) return NULL;
 		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 		InfiniteWorld_EvictGeneratedChunks(chunk);
 		return chunk;
@@ -612,24 +767,22 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 		InfiniteWorld_ChunksCapacity = capacity;
 	}
 
-	blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
-	if (!blocks) return NULL;
-	if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunkX, chunkZ, blocks)) {
-		Mem_Free(blocks);
-		return NULL;
-	}
-
+	if (!InfiniteWorld_CreateChunkData(chunkX, chunkZ, NULL, 0, &blocks, &blocks2)) return NULL;
 	chunk = &InfiniteWorld_Chunks[InfiniteWorld_ChunksCount];
 	chunk->x = chunkX;
 	chunk->z = chunkZ;
 	chunk->modified = false;
+	chunk->compressionBlocked = false;
 	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 	chunk->blocks = blocks;
 #ifdef EXTENDED_BLOCKS
-	chunk->blocks2 = NULL;
+	chunk->blocks2 = blocks2;
 #endif
+	chunk->edits = NULL;
+	chunk->editCount = 0;
 	if (!InfiniteWorld_InsertChunkSlot(chunkX, chunkZ, InfiniteWorld_ChunksCount)) {
 		Mem_Free(blocks);
+		Mem_Free(blocks2);
 		return NULL;
 	}
 	InfiniteWorld_ChunksCount++;
@@ -643,13 +796,24 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 	int index;
 	if (!block || y < 0 || y >= INFINITE_WORLD_HEIGHT || !InfiniteWorld_Active) return false;
 	chunk = InfiniteWorld_FindChunk(InfiniteWorld_ChunkCoord(x), InfiniteWorld_ChunkCoord(z));
-	/* A chunk without resident blocks is generated-only and cannot contain edits. */
-	if (!chunk || !chunk->blocks) return false;
-	/* Read-only physics probes still count as recent use for cache eviction. */
-	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+	if (!chunk) return false;
 	index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE)
 		+ (InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE)
 		+ InfiniteWorld_LocalCoord(x);
+	if (!chunk->blocks) {
+		cc_uint32 low = 0, high = chunk->editCount;
+		while (low < high) {
+			cc_uint32 mid = low + (high - low) / 2;
+			if (chunk->edits[mid].index < index) low = mid + 1;
+			else high = mid;
+		}
+		if (low >= chunk->editCount || chunk->edits[low].index != index) return false;
+		*block = (BlockID)chunk->edits[low].block;
+		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+		return true;
+	}
+	/* Read-only physics probes still count as recent use for cache eviction. */
+	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 #ifdef EXTENDED_BLOCKS
 	if (chunk->blocks2) *block = (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
 	else
@@ -657,6 +821,7 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 	*block = (BlockID)chunk->blocks[index];
 	return true;
 }
+
 BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
 	int cx, cz, index;
 	struct InfiniteWorld_Chunk* chunk;
@@ -704,6 +869,7 @@ cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block) {
 #endif
 	chunk->blocks[index] = (BlockRaw)block;
 	chunk->modified = true;
+	chunk->compressionBlocked = false;
 	return true;
 }
 
@@ -715,11 +881,32 @@ static void InfiniteWorld_WriteU32(cc_uint8* dst, cc_uint32 value) {
 static cc_uint32 InfiniteWorld_ReadU32(const cc_uint8* src) {
 	return (cc_uint32)src[0] | ((cc_uint32)src[1] << 8) | ((cc_uint32)src[2] << 16) | ((cc_uint32)src[3] << 24);
 }
+static cc_result InfiniteWorld_WriteChunkData(struct Stream* stream, struct InfiniteWorld_Chunk* chunk) {
+	BlockRaw* tempBlocks = NULL, *tempBlocks2 = NULL;
+	BlockRaw* blocks = chunk->blocks;
+	cc_result res;
+#ifdef EXTENDED_BLOCKS
+	BlockRaw zeroUpper[INFINITE_WORLD_CHUNK_VOLUME] = { 0 };
+	BlockRaw* blocks2 = chunk->blocks2;
+#endif
+	if (!blocks) {
+		if (!InfiniteWorld_CreateChunkData(chunk->x, chunk->z, chunk->edits, chunk->editCount, &tempBlocks, &tempBlocks2)) return ERR_OUT_OF_MEMORY;
+		blocks = tempBlocks;
+#ifdef EXTENDED_BLOCKS
+		blocks2 = tempBlocks2;
+#endif
+	}
+	res = Stream_Write(stream, blocks, INFINITE_WORLD_CHUNK_VOLUME);
+#ifdef EXTENDED_BLOCKS
+	if (!res) res = Stream_Write(stream, blocks2 ? blocks2 : zeroUpper, INFINITE_WORLD_CHUNK_VOLUME);
+#endif
+	Mem_Free(tempBlocks);
+	Mem_Free(tempBlocks2);
+	return res;
+}
+
 cc_result InfiniteWorld_Save(struct Stream* stream) {
 	cc_uint8 header[16], coords[8];
-#ifdef EXTENDED_BLOCKS
-	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME] = { 0 };
-#endif
 	cc_uint32 count = 0;
 	int i;
 	cc_result res;
@@ -736,10 +923,7 @@ cc_result InfiniteWorld_Save(struct Stream* stream) {
 		InfiniteWorld_WriteU32(&coords[0], (cc_uint32)chunk->x);
 		InfiniteWorld_WriteU32(&coords[4], (cc_uint32)chunk->z);
 		if ((res = Stream_Write(stream, coords, sizeof(coords)))) return res;
-		if ((res = Stream_Write(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
-#ifdef EXTENDED_BLOCKS
-		if ((res = Stream_Write(stream, chunk->blocks2 ? chunk->blocks2 : upper, INFINITE_WORLD_CHUNK_VOLUME))) return res;
-#endif
+		if ((res = InfiniteWorld_WriteChunkData(stream, chunk))) return res;
 	}
 	return 0;
 }
