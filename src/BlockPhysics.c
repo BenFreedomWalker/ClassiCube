@@ -93,6 +93,12 @@ static int physics_tickCount;
 static int physics_maxWaterX, physics_maxWaterY, physics_maxWaterZ;
 static struct TickQueue lavaQ, waterQ;
 
+#define INFINITE_PHYSICS_QUEUE_SIZE 4096
+#define INFINITE_PHYSICS_TICK_BUDGET 32
+struct InfinitePhysicsEntry { int x, y, z; cc_uint8 delay; };
+static struct InfinitePhysicsEntry infinitePhysicsQueue[INFINITE_PHYSICS_QUEUE_SIZE];
+static int infinitePhysicsHead, infinitePhysicsCount;
+
 #define PHYSICS_DELAY_MASK 0xF8000000UL
 #define PHYSICS_POS_MASK   0x07FFFFFFUL
 #define PHYSICS_DELAY_SHIFT 27
@@ -103,6 +109,7 @@ static struct TickQueue lavaQ, waterQ;
 static void Physics_OnNewMapLoaded(void* obj) {
 	TickQueue_Clear(&lavaQ);
 	TickQueue_Clear(&waterQ);
+	infinitePhysicsHead = infinitePhysicsCount = 0;
 
 	physics_maxWaterX = World.MaxX - 2;
 	physics_maxWaterY = World.MaxY - 2;
@@ -172,6 +179,62 @@ static void InfinitePhysics_Fall(int x, int y, int z) {
 	}
 }
 
+static void InfinitePhysics_Queue(int x, int y, int z, BlockID block) {
+	int tail;
+	if (infinitePhysicsCount == INFINITE_PHYSICS_QUEUE_SIZE) return;
+	tail = (infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE;
+	infinitePhysicsQueue[tail].x = x; infinitePhysicsQueue[tail].y = y; infinitePhysicsQueue[tail].z = z;
+	infinitePhysicsQueue[tail].delay = (block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 30 : 5;
+	infinitePhysicsCount++;
+}
+static cc_bool InfinitePhysics_IsLiquid(BlockID block) {
+	return block == BLOCK_WATER || block == BLOCK_STILL_WATER || block == BLOCK_LAVA || block == BLOCK_STILL_LAVA;
+}
+static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
+	int xx, yy, zz;
+	for (yy = max(0, y - 2); yy <= min(World.Height - 1, y + 2); yy++)
+	 for (zz = z - 2; zz <= z + 2; zz++)
+	  for (xx = x - 2; xx <= x + 2; xx++)
+		if (World_GetBlock(xx, yy, zz) == BLOCK_SPONGE) return true;
+	return false;
+}
+static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid) {
+	BlockID other;
+	if (!World_Contains(x, y, z)) return;
+	other = World_GetBlock(x, y, z);
+	if (liquid == BLOCK_WATER || liquid == BLOCK_STILL_WATER) {
+		if (other == BLOCK_LAVA || other == BLOCK_STILL_LAVA) Game_UpdateBlock(x, y, z, BLOCK_STONE);
+		else if (Blocks.Draw[other] == DRAW_GAS && !InfinitePhysics_NearSponge(x, y, z)) {
+			Game_UpdateBlock(x, y, z, BLOCK_WATER); InfinitePhysics_Queue(x, y, z, BLOCK_WATER);
+		}
+	} else {
+		if (other == BLOCK_WATER || other == BLOCK_STILL_WATER) Game_UpdateBlock(x, y, z, BLOCK_STONE);
+		else if (Blocks.Draw[other] == DRAW_GAS) {
+			Game_UpdateBlock(x, y, z, BLOCK_LAVA); InfinitePhysics_Queue(x, y, z, BLOCK_LAVA);
+		}
+	}
+}
+static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid) {
+	InfinitePhysics_SpreadTo(x, y - 1, z, liquid);
+	InfinitePhysics_SpreadTo(x - 1, y, z, liquid); InfinitePhysics_SpreadTo(x + 1, y, z, liquid);
+	InfinitePhysics_SpreadTo(x, y, z - 1, liquid); InfinitePhysics_SpreadTo(x, y, z + 1, liquid);
+}
+static void InfinitePhysics_Tick(void) {
+	int i, count = min(infinitePhysicsCount, INFINITE_PHYSICS_TICK_BUDGET);
+	for (i = 0; i < count; i++) {
+		struct InfinitePhysicsEntry entry = infinitePhysicsQueue[infinitePhysicsHead];
+		BlockID block;
+		infinitePhysicsHead = (infinitePhysicsHead + 1) % INFINITE_PHYSICS_QUEUE_SIZE; infinitePhysicsCount--;
+		block = World_GetBlock(entry.x, entry.y, entry.z);
+		if (!InfinitePhysics_IsLiquid(block)) continue;
+		if (entry.delay) {
+			entry.delay--;
+			infinitePhysicsQueue[(infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE] = entry;
+			infinitePhysicsCount++;
+		} else InfinitePhysics_ActivateLiquid(entry.x, entry.y, entry.z, block);
+	}
+}
+
 static void InfinitePhysics_ActivateAbove(int x, int y, int z) {
 	BlockID above;
 	if (y + 1 >= World.Height) return;
@@ -186,6 +249,15 @@ void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 	if (!Physics.Enabled) return;
 	if (World.Infinite) {
 		if (InfinitePhysics_IsFalling(now)) InfinitePhysics_Fall(x, y, z);
+		if (InfinitePhysics_IsLiquid(now)) InfinitePhysics_Queue(x, y, z, now);
+		if (now == BLOCK_AIR) {
+			BlockID adjacent;
+			adjacent = World_GetBlock(x - 1, y, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x - 1, y, z, adjacent);
+			adjacent = World_GetBlock(x + 1, y, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x + 1, y, z, adjacent);
+			adjacent = World_GetBlock(x, y, z - 1); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z - 1, adjacent);
+			adjacent = World_GetBlock(x, y, z + 1); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z + 1, adjacent);
+			adjacent = World_GetBlock(x, y - 1, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y - 1, z, adjacent);
+		}
 		InfinitePhysics_ActivateAbove(x, y, z);
 		return;
 	}
@@ -610,7 +682,9 @@ void Physics_Free(void) {
 }
 
 void Physics_Tick(void) {
-	if (!Physics.Enabled || !World.Blocks) return;
+	if (!Physics.Enabled) return;
+	if (World.Infinite) { InfinitePhysics_Tick(); physics_tickCount++; return; }
+	if (!World.Blocks) return;
 
 	/*if ((tickCount % 5) == 0) {*/
 	Physics_TickLava();
