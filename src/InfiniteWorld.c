@@ -161,20 +161,20 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 gx, gz;
-	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 3, 8);
-	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 2, 8);
-	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 3, 8);
-	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 2, 8);
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 19, 16);
+	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 2, 16);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 19, 16);
+	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 2, 16);
 	int attempt;
 	for (gz = minGZ; gz <= maxGZ; gz++) {
 		for (gx = minGX; gx <= maxGX; gx++) {
 			cc_uint32 anchorHash;
 			cc_int64 anchorX, anchorZ;
-			if (gx < -268435456LL || gx > 268435455LL ||
-				gz < -268435456LL || gz > 268435455LL) continue;
+			if (gx < -134217728LL || gx > 134217727LL ||
+				gz < -134217728LL || gz > 134217727LL) continue;
 			anchorHash = InfiniteWorld_Hash(seed ^ 0x6A09E667u, (int)gx, (int)gz);
-			anchorX = gx * 8 + (anchorHash & 7u);
-			anchorZ = gz * 8 + ((anchorHash >> 3) & 7u);
+			anchorX = gx * 16 + (anchorHash & 15u);
+			anchorZ = gz * 16 + ((anchorHash >> 4) & 15u);
 			for (attempt = 0; attempt < 8; attempt++) {
 				cc_uint32 offsetHash = anchorHash ^ (cc_uint32)(attempt * 0x85EBCA77u);
 				cc_int64 candidateX = anchorX + (int)(offsetHash & 7u) - 3;
@@ -185,6 +185,7 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 					candidateZ < Int32_MinValue || candidateZ > Int32_MaxValue) continue;
 				if (candidateX < baseX || candidateX >= endX || candidateZ < baseZ || candidateZ >= endZ) continue;
 				worldX = (int)candidateX; worldZ = (int)candidateZ;
+				if (attempt >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 8 : 2)) continue;
 				hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
 				surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 				if (surface <= INFINITE_WORLD_WATER_LEVEL ||
