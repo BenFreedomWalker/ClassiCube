@@ -689,7 +689,13 @@ cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block) {
 	index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE)
 		+ (InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE)
 		+ InfiniteWorld_LocalCoord(x);
+#ifndef EXTENDED_BLOCKS
+	/* No-op writes should not turn reproducible terrain into a pinned edit. */
+	if (chunk->blocks[index] == (BlockRaw)block) return true;
+#endif
 #ifdef EXTENDED_BLOCKS
+	/* Avoid pinning a generated chunk when a caller writes its existing block. */
+	if ((BlockID)(chunk->blocks[index] | (chunk->blocks2 ? (chunk->blocks2[index] << 8) : 0)) == block) return true;
 	if (block > 255 && !chunk->blocks2) {
 		chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
 		if (!chunk->blocks2) return false;
