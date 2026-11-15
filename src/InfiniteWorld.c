@@ -345,6 +345,23 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	return chunk;
 }
 
+cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
+	struct InfiniteWorld_Chunk* chunk;
+	int index;
+	if (!block || y < 0 || y >= INFINITE_WORLD_HEIGHT || !InfiniteWorld_Active) return false;
+	chunk = InfiniteWorld_FindChunk(InfiniteWorld_ChunkCoord(x), InfiniteWorld_ChunkCoord(z));
+	/* A chunk without resident blocks is generated-only and cannot contain edits. */
+	if (!chunk || !chunk->blocks) return false;
+	index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE)
+		+ (InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE)
+		+ InfiniteWorld_LocalCoord(x);
+#ifdef EXTENDED_BLOCKS
+	if (chunk->blocks2) *block = (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
+	else
+#endif
+	*block = (BlockID)chunk->blocks[index];
+	return true;
+}
 BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
 	int cx, cz, index;
 	struct InfiniteWorld_Chunk* chunk;

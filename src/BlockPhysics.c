@@ -1,5 +1,6 @@
 #include "BlockPhysics.h"
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Constants.h"
 #include "Funcs.h"
 #include "Event.h"
@@ -236,10 +237,11 @@ static void InfinitePhysics_DeleteSponge(int x, int y, int z) {
 }
 static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
 	int xx, yy, zz;
+	BlockID block;
 	for (yy = max(0, y - 2); yy <= min(World.Height - 1, y + 2); yy++)
 	 for (zz = z - 2; zz <= z + 2; zz++)
 	  for (xx = x - 2; xx <= x + 2; xx++)
-		if (World_GetBlock(xx, yy, zz) == BLOCK_SPONGE) return true;
+		if (InfiniteWorld_TryGetBlock(xx, yy, zz, &block) && block == BLOCK_SPONGE) return true;
 	return false;
 }
 static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int flow) {

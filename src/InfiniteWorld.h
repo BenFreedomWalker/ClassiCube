@@ -33,6 +33,8 @@ void InfiniteWorld_Reset(void);
 /* Reads a block from the generated chunk store. Y below zero is bedrock;
    Y at or above the world height is air. */
 BlockID InfiniteWorld_GetBlock(int x, int y, int z);
+/* Reads only an already resident chunk; does not generate or allocate chunks. */
+cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block);
 /* Changes a block in the chunk store. Returns false if coordinates are invalid
    or memory allocation fails. */
 cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block);
