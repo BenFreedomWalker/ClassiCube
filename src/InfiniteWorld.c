@@ -192,10 +192,10 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
-	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 113, 32);
-	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 81, 32);
-	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 113, 32);
-	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 81, 32);
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 114, 32);
+	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 82, 32);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 114, 32);
+	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 82, 32);
 	cc_int64 gx, gz;
 
 	for (gz = minGZ; gz <= maxGZ; gz++) {
@@ -214,7 +214,8 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 				int dx = (int)(h % 3u) - 1;
 				int dy = (int)((h >> 2) % 3u) - 1;
 				int dz = (int)((h >> 4) % 3u) - 1;
-				int radius = 1 + (int)(((h >> 8) % 3u) == 0u);
+				int radius = (step > 0 && (step % 16) == 0 && ((h >> 12) & 3u) == 0u)
+					? 3 : 1 + (int)(((h >> 8) % 3u) == 0u);
 				int ox, oy, oz;
 
 				vx += dx; if (vx < -3) vx = -3; if (vx > 3) vx = 3;
