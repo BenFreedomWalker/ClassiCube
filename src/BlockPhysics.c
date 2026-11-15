@@ -141,10 +141,54 @@ static cc_bool Physics_IsEdgeWater(int x, int y, int z) {
 }
 
 
+/* Infinite worlds cannot use packed finite-map indices for physics. Keep
+   falling-block updates coordinate based so negative X/Z positions work. */
+static cc_bool InfinitePhysics_IsFalling(BlockID block) {
+	return block == BLOCK_SAND || block == BLOCK_GRAVEL;
+}
+
+static cc_bool InfinitePhysics_IsReplaceable(BlockID block) {
+	return block == BLOCK_AIR || (block >= BLOCK_WATER && block <= BLOCK_STILL_LAVA);
+}
+
+static void InfinitePhysics_Fall(int x, int y, int z) {
+	BlockID block = World_GetBlock(x, y, z);
+	int destY = y;
+
+	if (!InfinitePhysics_IsFalling(block)) return;
+
+	/* Search down through air and liquids, stopping at the first solid block. */
+	while (destY > 0 && InfinitePhysics_IsReplaceable(World_GetBlock(x, destY - 1, z))) {
+		destY--;
+	}
+	if (destY == y) return;
+
+	Game_UpdateBlock(x, y, z, BLOCK_AIR);
+	Game_UpdateBlock(x, destY, z, block);
+
+	/* A falling block may expose another falling block immediately above it. */
+	if (y + 1 < World.Height) {
+		InfinitePhysics_Fall(x, y + 1, z);
+	}
+}
+
+static void InfinitePhysics_ActivateAbove(int x, int y, int z) {
+	BlockID above;
+	if (y + 1 >= World.Height) return;
+
+	above = World_GetBlock(x, y + 1, z);
+	if (InfinitePhysics_IsFalling(above)) InfinitePhysics_Fall(x, y + 1, z);
+}
+
 void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 	PhysicsHandler handler;
 	int index;
-	if (!Physics.Enabled || World.Infinite) return;
+	if (!Physics.Enabled) return;
+	if (World.Infinite) {
+		if (InfinitePhysics_IsFalling(now)) InfinitePhysics_Fall(x, y, z);
+		InfinitePhysics_ActivateAbove(x, y, z);
+		return;
+	}
 
 	if (now == BLOCK_AIR && Physics_IsEdgeWater(x, y, z)) {
 		now = BLOCK_STILL_WATER;
