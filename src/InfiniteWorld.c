@@ -419,6 +419,7 @@ struct InfiniteWorld_Chunk {
 	int x, z;
 	cc_bool modified, compressionBlocked;
 	cc_uint64 lastUsed;
+	int lruPrev, lruNext;
 	BlockRaw* blocks;
 #ifdef EXTENDED_BLOCKS
 	BlockRaw* blocks2;
@@ -437,6 +438,7 @@ struct InfiniteWorld_State {
 	cc_uint64 AccessCounter;
 	int ResidentChunks;
 	int NextCompactAt;
+	int LruHead, LruTail;
 };
 
 /* The active state can be temporarily redirected while a save is loaded.
@@ -457,6 +459,35 @@ static struct InfiniteWorld_State* InfiniteWorld_Current = &InfiniteWorld_MainSt
 /* Keep the full 21x21x4 renderer window resident, with room for border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 #define INFINITE_WORLD_MAX_SAVED_CHUNKS 1000000u
+
+/* Dense chunks use an intrusive LRU list so eviction does not scan the full
+   history of chunk coordinates on every cache miss. */
+static void InfiniteWorld_LruUnlink(struct InfiniteWorld_Chunk* chunk) {
+	int index = (int)(chunk - InfiniteWorld_Chunks);
+	if (InfiniteWorld_LruHead != index && chunk->lruPrev < 0 && chunk->lruNext < 0) return;
+	if (chunk->lruPrev >= 0) InfiniteWorld_Chunks[chunk->lruPrev].lruNext = chunk->lruNext;
+	else InfiniteWorld_LruHead = chunk->lruNext;
+	if (chunk->lruNext >= 0) InfiniteWorld_Chunks[chunk->lruNext].lruPrev = chunk->lruPrev;
+	else InfiniteWorld_LruTail = chunk->lruPrev;
+	chunk->lruPrev = chunk->lruNext = -1;
+}
+
+static void InfiniteWorld_LruLinkHead(struct InfiniteWorld_Chunk* chunk) {
+	int index = (int)(chunk - InfiniteWorld_Chunks);
+	if (InfiniteWorld_LruHead == index) return;
+	chunk->lruPrev = -1;
+	chunk->lruNext = InfiniteWorld_LruHead;
+	if (InfiniteWorld_LruHead >= 0) InfiniteWorld_Chunks[InfiniteWorld_LruHead].lruPrev = index;
+	else InfiniteWorld_LruTail = index;
+	InfiniteWorld_LruHead = index;
+}
+
+static void InfiniteWorld_LruTouch(struct InfiniteWorld_Chunk* chunk) {
+	int index = (int)(chunk - InfiniteWorld_Chunks);
+	if (!chunk->blocks || (chunk->modified && chunk->compressionBlocked) || InfiniteWorld_LruHead == index) return;
+	InfiniteWorld_LruUnlink(chunk);
+	InfiniteWorld_LruLinkHead(chunk);
+}
 
 /* Rebuilds a dense chunk from its deterministic base terrain and sparse edits. */
 static cc_bool InfiniteWorld_CreateChunkData(int chunkX, int chunkZ,
@@ -617,6 +648,8 @@ void InfiniteWorld_Reset(void) {
 	InfiniteWorld_AccessCounter = 0;
 	InfiniteWorld_ResidentChunks = 0;
 	InfiniteWorld_NextCompactAt = 4096;
+	InfiniteWorld_LruHead = -1;
+	InfiniteWorld_LruTail = -1;
 }
 
 void InfiniteWorld_Init(int seed) {
@@ -685,21 +718,14 @@ static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIn
 static void InfiniteWorld_EvictChunks(struct InfiniteWorld_Chunk* keep) {
 	while (InfiniteWorld_ResidentChunks > INFINITE_WORLD_MAX_RESIDENT_CHUNKS) {
 		int attempts = InfiniteWorld_ResidentChunks;
-		cc_uint64 cutoff = InfiniteWorld_AccessCounter;
 		cc_bool evicted = false;
-		while (attempts-- > 0) {
-			struct InfiniteWorld_Chunk* oldest = NULL;
-			int i;
-			for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
-				struct InfiniteWorld_Chunk* candidate = &InfiniteWorld_Chunks[i];
-				if (!candidate->blocks || candidate == keep || candidate->lastUsed > cutoff ||
-					(candidate->modified && candidate->compressionBlocked)) continue;
-				if (!oldest || candidate->lastUsed < oldest->lastUsed) oldest = candidate;
-			}
-			if (!oldest) break;
+		while (attempts-- > 0 && InfiniteWorld_LruTail >= 0) {
+			struct InfiniteWorld_Chunk* oldest = &InfiniteWorld_Chunks[InfiniteWorld_LruTail];
+			if (oldest == keep) break;
+			InfiniteWorld_LruUnlink(oldest);
 			if (oldest->modified) {
 				if (!InfiniteWorld_CompressModifiedChunk(oldest)) {
-					oldest->lastUsed = ++InfiniteWorld_AccessCounter;
+					if (!oldest->compressionBlocked) InfiniteWorld_LruLinkHead(oldest);
 					continue;
 				}
 			} else {
@@ -722,8 +748,8 @@ static void InfiniteWorld_EvictChunks(struct InfiniteWorld_Chunk* keep) {
    reproducible from the seed. Periodically discard those records so travelling
    through a large world does not grow the coordinate index forever. */
 static void InfiniteWorld_CompactChunks(void) {
-	struct InfiniteWorld_Chunk* oldChunks, *newChunks;
-	int oldCount, oldCapacity, i, live = 0, out = 0;
+	struct InfiniteWorld_Chunk* oldChunks, *newChunks, *oldChunk, *newChunk;
+	int oldCount, oldCapacity, i, live = 0, out = 0, oldLruTail, oldIndex;
 	cc_uint32 capacity;
 
 	if (InfiniteWorld_ChunksCount < InfiniteWorld_NextCompactAt) return;
@@ -746,6 +772,7 @@ static void InfiniteWorld_CompactChunks(void) {
 		newChunks[out++] = *chunk;
 	}
 
+	oldLruTail  = InfiniteWorld_LruTail;
 	oldChunks   = InfiniteWorld_Chunks;
 	oldCount    = InfiniteWorld_ChunksCount;
 	oldCapacity = InfiniteWorld_ChunksCapacity;
@@ -758,6 +785,18 @@ static void InfiniteWorld_CompactChunks(void) {
 		InfiniteWorld_ChunksCapacity = oldCapacity;
 		Mem_Free(newChunks);
 		return;
+	}
+	InfiniteWorld_LruHead = -1;
+	InfiniteWorld_LruTail = -1;
+	for (i = 0; i < live; i++) {
+		newChunks[i].lruPrev = -1;
+		newChunks[i].lruNext = -1;
+	}
+	/* Rebuild links by coordinate while walking the old LRU tail-to-head. */
+	for (oldIndex = oldLruTail; oldIndex >= 0; oldIndex = oldChunk->lruPrev) {
+		oldChunk = &oldChunks[oldIndex];
+		newChunk = InfiniteWorld_FindChunk(oldChunk->x, oldChunk->z);
+		if (newChunk) InfiniteWorld_LruLinkHead(newChunk);
 	}
 	Mem_Free(oldChunks);
 }
@@ -772,6 +811,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	if (chunk) {
 		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) return NULL;
 		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+		InfiniteWorld_LruTouch(chunk);
 		InfiniteWorld_EvictChunks(chunk);
 		return chunk;
 	}
@@ -800,6 +840,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 #endif
 	chunk->edits = NULL;
 	chunk->editCount = 0;
+	chunk->lruPrev = chunk->lruNext = -1;
 	if (!InfiniteWorld_InsertChunkSlot(chunkX, chunkZ, InfiniteWorld_ChunksCount)) {
 		Mem_Free(blocks);
 		Mem_Free(blocks2);
@@ -807,6 +848,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	}
 	InfiniteWorld_ChunksCount++;
 	InfiniteWorld_ResidentChunks++;
+	InfiniteWorld_LruLinkHead(chunk);
 	InfiniteWorld_EvictChunks(chunk);
 	return chunk;
 }
@@ -834,6 +876,7 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 	}
 	/* Sparse chunks expose explicit edits here; unchanged base terrain stays ungenerated. */
 	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+	InfiniteWorld_LruTouch(chunk);
 #ifdef EXTENDED_BLOCKS
 	if (chunk->blocks2) *block = (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
 	else
@@ -890,6 +933,7 @@ cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block) {
 	chunk->blocks[index] = (BlockRaw)block;
 	chunk->modified = true;
 	chunk->compressionBlocked = false;
+	InfiniteWorld_LruTouch(chunk);
 	return true;
 }
 
@@ -1065,6 +1109,8 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	   eviction operate normally, but the current world remains untouched. */
 	previous = InfiniteWorld_Current;
 	InfiniteWorld_Current = &staged;
+	InfiniteWorld_LruHead = -1;
+	InfiniteWorld_LruTail = -1;
 	InfiniteWorld_Seed = seed;
 	InfiniteWorld_Active = true;
 	InfiniteWorld_NextCompactAt = 4096;
