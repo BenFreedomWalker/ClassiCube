@@ -246,7 +246,7 @@ static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep)
    through a large world does not grow the coordinate index forever. */
 static void InfiniteWorld_CompactChunks(void) {
 	struct InfiniteWorld_Chunk* oldChunks, *newChunks;
-	int i, live = 0, out = 0;
+	int oldCount, oldCapacity, i, live = 0, out = 0;
 	cc_uint32 capacity;
 
 	if (InfiniteWorld_ChunksCount < InfiniteWorld_NextCompactAt) return;
@@ -256,6 +256,11 @@ static void InfiniteWorld_CompactChunks(void) {
 	}
 	if (live * 2 >= InfiniteWorld_ChunksCount) return;
 
+	capacity = 32;
+	while (capacity < (cc_uint32)live * 2) {
+		if (capacity > 0x7FFFFFFFu) return;
+		capacity *= 2;
+	}
 	newChunks = (struct InfiniteWorld_Chunk*)Mem_TryAlloc((cc_uint32)live, sizeof(struct InfiniteWorld_Chunk));
 	if (!newChunks && live) return;
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
@@ -264,22 +269,17 @@ static void InfiniteWorld_CompactChunks(void) {
 		newChunks[out++] = *chunk;
 	}
 
-	oldChunks = InfiniteWorld_Chunks;
+	oldChunks   = InfiniteWorld_Chunks;
+	oldCount    = InfiniteWorld_ChunksCount;
+	oldCapacity = InfiniteWorld_ChunksCapacity;
 	InfiniteWorld_Chunks = newChunks;
 	InfiniteWorld_ChunksCount = live;
 	InfiniteWorld_ChunksCapacity = live;
-	capacity = 32;
-	while (capacity < (cc_uint32)live * 2) {
-		if (capacity > 0x7FFFFFFFu) {
-			InfiniteWorld_Chunks = oldChunks;
-			return;
-		}
-		capacity *= 2;
-	}
 	if (!InfiniteWorld_RebuildChunkSlots(capacity)) {
 		InfiniteWorld_Chunks = oldChunks;
-		/* The old coordinate table remains valid because it still indexes
-		   the original array, which is restored above. */
+		InfiniteWorld_ChunksCount = oldCount;
+		InfiniteWorld_ChunksCapacity = oldCapacity;
+		Mem_Free(newChunks);
 		return;
 	}
 	Mem_Free(oldChunks);
