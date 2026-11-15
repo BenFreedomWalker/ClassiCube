@@ -456,6 +456,8 @@ static struct InfiniteWorld_State* InfiniteWorld_Current = &InfiniteWorld_MainSt
 #define InfiniteWorld_AccessCounter      (InfiniteWorld_Current->AccessCounter)
 #define InfiniteWorld_ResidentChunks     (InfiniteWorld_Current->ResidentChunks)
 #define InfiniteWorld_NextCompactAt      (InfiniteWorld_Current->NextCompactAt)
+#define InfiniteWorld_LruHead             (InfiniteWorld_Current->LruHead)
+#define InfiniteWorld_LruTail             (InfiniteWorld_Current->LruTail)
 /* Keep the full 21x21x4 renderer window resident, with room for border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 #define INFINITE_WORLD_MAX_SAVED_CHUNKS 1000000u
