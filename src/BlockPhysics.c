@@ -190,6 +190,34 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block) {
 static cc_bool InfinitePhysics_IsLiquid(BlockID block) {
 	return block == BLOCK_WATER || block == BLOCK_STILL_WATER || block == BLOCK_LAVA || block == BLOCK_STILL_LAVA;
 }
+
+/* Sponge interactions use world coordinates rather than finite-map indices. */
+static void InfinitePhysics_PlaceSponge(int x, int y, int z) {
+	int xx, yy, zz;
+	for (yy = y - 2; yy <= y + 2; yy++)
+	 for (zz = z - 2; zz <= z + 2; zz++)
+	  for (xx = x - 2; xx <= x + 2; xx++) {
+		BlockID block;
+		if (!World_Contains(xx, yy, zz)) continue;
+		block = World_GetBlock(xx, yy, zz);
+		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
+			Game_UpdateBlock(xx, yy, zz, BLOCK_AIR);
+	}
+}
+
+static void InfinitePhysics_DeleteSponge(int x, int y, int z) {
+	int xx, yy, zz;
+	for (yy = y - 3; yy <= y + 3; yy++)
+	 for (zz = z - 3; zz <= z + 3; zz++)
+	  for (xx = x - 3; xx <= x + 3; xx++) {
+		BlockID block;
+		if (Math_AbsI(xx - x) != 3 && Math_AbsI(yy - y) != 3 && Math_AbsI(zz - z) != 3) continue;
+		if (!World_Contains(xx, yy, zz)) continue;
+		block = World_GetBlock(xx, yy, zz);
+		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
+			InfinitePhysics_Queue(xx, yy, zz, block);
+	}
+}
 static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
 	int xx, yy, zz;
 	for (yy = max(0, y - 2); yy <= min(World.Height - 1, y + 2); yy++)
@@ -250,6 +278,8 @@ void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 	if (World.Infinite) {
 		if (InfinitePhysics_IsFalling(now)) InfinitePhysics_Fall(x, y, z);
 		if (InfinitePhysics_IsLiquid(now)) InfinitePhysics_Queue(x, y, z, now);
+		if (now == BLOCK_SPONGE) InfinitePhysics_PlaceSponge(x, y, z);
+		if (old == BLOCK_SPONGE && now == BLOCK_AIR) InfinitePhysics_DeleteSponge(x, y, z);
 		if (now == BLOCK_AIR) {
 			BlockID adjacent;
 			adjacent = World_GetBlock(x - 1, y, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x - 1, y, z, adjacent);
