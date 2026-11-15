@@ -645,6 +645,8 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 	chunk = InfiniteWorld_FindChunk(InfiniteWorld_ChunkCoord(x), InfiniteWorld_ChunkCoord(z));
 	/* A chunk without resident blocks is generated-only and cannot contain edits. */
 	if (!chunk || !chunk->blocks) return false;
+	/* Read-only physics probes still count as recent use for cache eviction. */
+	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 	index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE)
 		+ (InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE)
 		+ InfiniteWorld_LocalCoord(x);
@@ -769,6 +771,9 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		/* Reject chunk coordinates whose 16-block extent exceeds signed block space. */
 		if (chunkX < -134217728 || chunkX > 134217727 ||
 			chunkZ < -134217728 || chunkZ > 134217727) return ERR_INVALID_ARGUMENT;
+		/* A chunk may appear only once in a save; duplicates make its
+		   declared record count ambiguous and can hide earlier block data. */
+		if (InfiniteWorld_FindChunk(chunkX, chunkZ)) return ERR_INVALID_ARGUMENT;
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
 		if (!chunk) return ERR_OUT_OF_MEMORY;
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
