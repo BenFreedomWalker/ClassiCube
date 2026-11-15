@@ -185,6 +185,72 @@ static void InfiniteWorld_GenerateOres(int seed, int chunkX, int chunkZ, BlockRa
 		}
 	}
 }
+/* Cave worms are seeded by a fixed 32x32 world grid. Every chunk evaluates
+   nearby worms from their origins, so tunnels continue across chunk edges. */
+static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 80, 32);
+	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 79, 32);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 80, 32);
+	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 79, 32);
+	cc_int64 gx, gz;
+
+	for (gz = minGZ; gz <= maxGZ; gz++) {
+		for (gx = minGX; gx <= maxGX; gx++) {
+			cc_uint32 origin = InfiniteWorld_Hash(seed ^ 0x6D2B79F5u, (int)gx, (int)gz);
+			cc_int64 caveX = gx * 32 + (origin & 31u);
+			cc_int64 caveZ = gz * 32 + ((origin >> 5) & 31u);
+			int caveY = 7 + (int)((origin >> 10) % 42u);
+			int length = 40 + (int)((origin >> 18) % 41u);
+			int vx = 0, vy = 0, vz = 0;
+			int step;
+
+			for (step = 0; step < length; step++) {
+				cc_uint32 h = InfiniteWorld_Hash(seed ^ (int)(0x9E3779B9u * (cc_uint32)(step + 1)),
+					(int)gx, (int)gz);
+				int dx = (int)(h % 3u) - 1;
+				int dy = (int)((h >> 2) % 3u) - 1;
+				int dz = (int)((h >> 4) % 3u) - 1;
+				int radius = 1 + (int)(((h >> 8) % 3u) == 0u);
+				int ox, oy, oz;
+
+				vx += dx; if (vx < -3) vx = -3; if (vx > 3) vx = 3;
+				vy += dy; if (vy < -2) vy = -2; if (vy > 2) vy = 2;
+				vz += dz; if (vz < -3) vz = -3; if (vz > 3) vz = 3;
+				caveX += vx / 2;
+				caveZ += vz / 2;
+				if (vy > 0) caveY++; else if (vy < 0) caveY--;
+				if (caveY < 5) caveY = 5;
+				if (caveY > 53) caveY = 53;
+
+				if ((h & 7u) == 0u) continue;
+				for (oy = -radius; oy <= radius; oy++) {
+					int y = caveY + oy;
+					if (y <= 0 || y >= INFINITE_WORLD_HEIGHT) continue;
+					for (oz = -radius; oz <= radius; oz++) {
+						cc_int64 worldZ = caveZ + oz;
+						if (worldZ < baseZ || worldZ >= endZ) continue;
+						for (ox = -radius; ox <= radius; ox++) {
+							cc_int64 worldX = caveX + ox;
+							int index;
+							if (worldX < baseX || worldX >= endX) continue;
+							if (ox * ox + oy * oy + oz * oz > radius * radius) continue;
+							index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+								+ (int)(worldZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(worldX - baseX);
+							if (blocks[index] == BLOCK_STONE || blocks[index] == BLOCK_DIRT) {
+								blocks[index] = BLOCK_AIR;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
@@ -218,6 +284,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			}
 		}
 	}
+	InfiniteWorld_GenerateCaves(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
 	return true;
