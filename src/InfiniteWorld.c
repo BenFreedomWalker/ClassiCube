@@ -65,6 +65,12 @@ static cc_bool InfiniteWorld_IsSnowy(int seed, int x, int z, int surface) {
 	return surface >= 38 && temperature < -24;
 }
 
+/* Low terrain near the waterline forms sandy beaches and shallow seabeds. */
+static cc_bool InfiniteWorld_IsBeach(int surface) {
+	return surface >= INFINITE_WORLD_WATER_LEVEL - 3 &&
+		surface <= INFINITE_WORLD_WATER_LEVEL + 2;
+}
+
 static int InfiniteWorld_SurfaceHeight(int seed, int x, int z) {
 	int broad = InfiniteWorld_Noise(seed, x, z, 96);
 	int detail = InfiniteWorld_Noise(seed ^ 0x51ED270Bu, x, z, 24);
@@ -264,7 +270,7 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
-	cc_bool desert, snowy;
+	cc_bool desert, beach, snowy;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
@@ -278,7 +284,9 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			worldX = (int)(baseX + x);
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 			desert = InfiniteWorld_IsDesert(seed, worldX, worldZ);
-			snowy = !desert && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface);
+			beach = !desert && surface >= INFINITE_WORLD_WATER_LEVEL - 3 &&
+				surface <= INFINITE_WORLD_WATER_LEVEL + 2;
+			snowy = !desert && !beach && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface);
 
 			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
 				index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x;
@@ -287,9 +295,9 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 				} else if (y < surface - 3) {
 					blocks[index] = BLOCK_STONE;
 				} else if (y < surface) {
-					blocks[index] = desert ? BLOCK_SANDSTONE : BLOCK_DIRT;
+					blocks[index] = (desert || beach) ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
-					blocks[index] = desert ? BLOCK_SAND : BLOCK_GRASS;
+					blocks[index] = (desert || beach) ? BLOCK_SAND : BLOCK_GRASS;
 				} else if (y == surface + 1 && snowy) {
 					blocks[index] = BLOCK_SNOW;
 				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
