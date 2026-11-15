@@ -65,6 +65,12 @@ static cc_bool InfiniteWorld_IsSnowy(int seed, int x, int z, int surface) {
 	return surface >= 38 && temperature < -24;
 }
 
+/* Broad forest regions add a distinct vegetation density without changing
+   the underlying terrain height or the placement of neighbouring chunks. */
+static cc_bool InfiniteWorld_IsForest(int seed, int x, int z) {
+	return InfiniteWorld_Noise(seed ^ 0x3C6EF372u, x, z, 160) > 20;
+}
+
 /* Low terrain near the waterline forms sandy beaches and shallow seabeds. */
 static cc_bool InfiniteWorld_IsBeach(int surface) {
 	return surface >= INFINITE_WORLD_WATER_LEVEL - 3 &&
@@ -111,9 +117,10 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 				anchorZ < Int32_MinValue || anchorZ > Int32_MaxValue) continue;
 			x = (int)anchorX; z = (int)anchorZ;
 			hash = InfiniteWorld_Hash(seed ^ 0x2C9277B5u, x, z);
-			if ((hash & 255u) >= 2u) continue;
 			surface = InfiniteWorld_SurfaceHeight(seed, x, z);
-			if (surface <= INFINITE_WORLD_WATER_LEVEL || InfiniteWorld_IsDesert(seed, x, z)) continue;
+			if (surface <= INFINITE_WORLD_WATER_LEVEL || InfiniteWorld_IsDesert(seed, x, z) ||
+				InfiniteWorld_IsBeach(surface)) continue;
+			if ((hash & 255u) >= (InfiniteWorld_IsForest(seed, x, z) ? 10u : 2u)) continue;
 			height = 5 + (int)((hash >> 8) % 3u);
 			top = surface + height;
 			if (top + 1 >= INFINITE_WORLD_HEIGHT) continue;
@@ -153,8 +160,8 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
 			worldX = (int)(baseX + x);
 			hash = InfiniteWorld_Hash(seed ^ 0x6A09E667u, worldX, worldZ);
-			if ((hash & 127u) != 0u) continue;
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			if ((hash & 127u) >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 4u : 1u)) continue;
 			if (surface <= INFINITE_WORLD_WATER_LEVEL ||
 				InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
 				InfiniteWorld_IsBeach(surface) ||
