@@ -693,18 +693,13 @@ static cc_bool InfiniteWorld_RebuildChunkSlots(cc_uint32 capacity) {
 }
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_FindChunk(int chunkX, int chunkZ) {
-	static struct InfiniteWorld_State* cacheState;
 	static int cacheIndices[4] = { -1, -1, -1, -1 };
 	cc_uint32 index, slot;
 	int cacheSlot = ((chunkX % 2) != 0) | (((chunkZ % 2) != 0) << 1);
 
 	/* A mesh's 18x18 block halo usually touches only four data chunks.
 	   Cache their record indices, not pointers: the record array may move
-	   during growth or compaction, so validate coordinates on every hit. */
-	if (cacheState != InfiniteWorld_Current) {
-		cacheState = InfiniteWorld_Current;
-		cacheIndices[0] = cacheIndices[1] = cacheIndices[2] = cacheIndices[3] = -1;
-	}
+	   during growth, compaction, or world replacement, so validate coordinates. */
 	index = (cc_uint32)cacheIndices[cacheSlot];
 	if (cacheIndices[cacheSlot] >= 0 && index < (cc_uint32)InfiniteWorld_ChunksCount) {
 		struct InfiniteWorld_Chunk* cached = &InfiniteWorld_Chunks[index];
