@@ -270,7 +270,7 @@ static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid, 
 /* Coordinate-based random ticks for the active area of an infinite world.
    Sampling is bounded per frame and centred on the local player. */
 #define INFINITE_RANDOM_TICK_BUDGET 64
-#define INFINITE_RANDOM_TICK_RADIUS 80
+#define INFINITE_RANDOM_TICK_CHUNK_RADIUS 2
 
 static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 	BlockID below;
@@ -329,14 +329,25 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 
 static void InfinitePhysics_TickRandomBlocks(void) {
 	Vec3 position;
-	int i, x, y, z, radius = INFINITE_RANDOM_TICK_RADIUS;
+	int i, x, y, z, chunkX, chunkZ;
 	if (!Entities.CurPlayer) return;
 	position = Entities.CurPlayer->Base.Position;
+	chunkX = InfiniteWorld_ChunkCoord((int)position.x);
+	chunkZ = InfiniteWorld_ChunkCoord((int)position.z);
 
 	for (i = 0; i < INFINITE_RANDOM_TICK_BUDGET; i++) {
-		x = (int)position.x + Random_Next(&physics_rnd, radius * 2 + 1) - radius;
+		cc_int64 blockX, blockZ;
+		int cx = chunkX + Random_Next(&physics_rnd, INFINITE_RANDOM_TICK_CHUNK_RADIUS * 2 + 1) - INFINITE_RANDOM_TICK_CHUNK_RADIUS;
+		int cz = chunkZ + Random_Next(&physics_rnd, INFINITE_RANDOM_TICK_CHUNK_RADIUS * 2 + 1) - INFINITE_RANDOM_TICK_CHUNK_RADIUS;
+		x = Random_Next(&physics_rnd, INFINITE_WORLD_CHUNK_SIZE);
+		z = Random_Next(&physics_rnd, INFINITE_WORLD_CHUNK_SIZE);
+		blockX = (cc_int64)cx * INFINITE_WORLD_CHUNK_SIZE + x;
+		blockZ = (cc_int64)cz * INFINITE_WORLD_CHUNK_SIZE + z;
+		if (blockX < Int32_MinValue || blockX > Int32_MaxValue ||
+			blockZ < Int32_MinValue || blockZ > Int32_MaxValue) continue;
+		x = (int)blockX;
+		z = (int)blockZ;
 		y = Random_Next(&physics_rnd, World.Height);
-		z = (int)position.z + Random_Next(&physics_rnd, radius * 2 + 1) - radius;
 		InfinitePhysics_RandomTick(x, y, z, World_GetBlock(x, y, z));
 	}
 }
