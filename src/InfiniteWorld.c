@@ -427,15 +427,33 @@ struct InfiniteWorld_Chunk {
 	cc_uint32 editCount;
 };
 
-static struct InfiniteWorld_Chunk* InfiniteWorld_Chunks;
-static int InfiniteWorld_ChunksCount, InfiniteWorld_ChunksCapacity;
-static cc_uint32* InfiniteWorld_ChunkSlots;
-static cc_uint32 InfiniteWorld_ChunkSlotsCapacity;
-static int InfiniteWorld_Seed;
-static cc_bool InfiniteWorld_Active;
-static cc_uint64 InfiniteWorld_AccessCounter;
-static int InfiniteWorld_ResidentChunks;
-static int InfiniteWorld_NextCompactAt = 4096;
+struct InfiniteWorld_State {
+	struct InfiniteWorld_Chunk* Chunks;
+	int ChunksCount, ChunksCapacity;
+	cc_uint32* ChunkSlots;
+	cc_uint32 ChunkSlotsCapacity;
+	int Seed;
+	cc_bool Active;
+	cc_uint64 AccessCounter;
+	int ResidentChunks;
+	int NextCompactAt;
+};
+
+/* The active state can be temporarily redirected while a save is loaded.
+   This lets failed loads discard their staging data without touching the
+   currently playable world. */
+static struct InfiniteWorld_State InfiniteWorld_MainState;
+static struct InfiniteWorld_State* InfiniteWorld_Current = &InfiniteWorld_MainState;
+#define InfiniteWorld_Chunks             (InfiniteWorld_Current->Chunks)
+#define InfiniteWorld_ChunksCount        (InfiniteWorld_Current->ChunksCount)
+#define InfiniteWorld_ChunksCapacity     (InfiniteWorld_Current->ChunksCapacity)
+#define InfiniteWorld_ChunkSlots         (InfiniteWorld_Current->ChunkSlots)
+#define InfiniteWorld_ChunkSlotsCapacity (InfiniteWorld_Current->ChunkSlotsCapacity)
+#define InfiniteWorld_Seed               (InfiniteWorld_Current->Seed)
+#define InfiniteWorld_Active             (InfiniteWorld_Current->Active)
+#define InfiniteWorld_AccessCounter      (InfiniteWorld_Current->AccessCounter)
+#define InfiniteWorld_ResidentChunks     (InfiniteWorld_Current->ResidentChunks)
+#define InfiniteWorld_NextCompactAt      (InfiniteWorld_Current->NextCompactAt)
 /* Keep the full 21x21x4 renderer window resident, with room for border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 #define INFINITE_WORLD_MAX_SAVED_CHUNKS 1000000u
@@ -1012,6 +1030,8 @@ static cc_result InfiniteWorld_PreflightRecords(struct Stream* stream, cc_uint32
 }
 
 cc_result InfiniteWorld_Load(struct Stream* stream) {
+	struct InfiniteWorld_State staged = { 0 };
+	struct InfiniteWorld_State* previous;
 	cc_uint8 header[16], coords[8];
 #ifdef EXTENDED_BLOCKS
 	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME];
@@ -1037,28 +1057,35 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		required = (cc_uint64)count * recordSize;
 		if (position > length || required > (cc_uint64)(length - position)) return ERR_END_OF_STREAM;
 	}
-	/* Bounds and duplicate checks must also happen before the active world is
-	   replaced. The preflight rewinds on completion, ready for the real load. */
+	/* Bounds and duplicate checks must also happen before staging begins.
+	   The preflight rewinds on completion, ready for the actual load. */
 	if ((res = InfiniteWorld_PreflightRecords(stream, count, (cc_uint32)(recordSize - 8)))) return res;
-	World_SetInfiniteMap(seed, INFINITE_WORLD_HEIGHT);
+
+	/* Redirect the chunk store to temporary state. Chunk generation and cache
+	   eviction operate normally, but the current world remains untouched. */
+	previous = InfiniteWorld_Current;
+	InfiniteWorld_Current = &staged;
+	InfiniteWorld_Seed = seed;
+	InfiniteWorld_Active = true;
+	InfiniteWorld_NextCompactAt = 4096;
 	for (n = 0; n < count; n++) {
-		if ((res = Stream_Read(stream, coords, sizeof(coords)))) return res;
+		if ((res = Stream_Read(stream, coords, sizeof(coords)))) goto failed;
 		chunkX = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[0]);
 		chunkZ = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[4]);
 		/* Keep the checks for non-seekable streams, which cannot be preflighted. */
 		if (chunkX < -134217728 || chunkX > 134217727 ||
-			chunkZ < -134217728 || chunkZ > 134217727) return ERR_INVALID_ARGUMENT;
-		if (InfiniteWorld_FindChunk(chunkX, chunkZ)) return ERR_INVALID_ARGUMENT;
+			chunkZ < -134217728 || chunkZ > 134217727) { res = ERR_INVALID_ARGUMENT; goto failed; }
+		if (InfiniteWorld_FindChunk(chunkX, chunkZ)) { res = ERR_INVALID_ARGUMENT; goto failed; }
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
-		if (!chunk) return ERR_OUT_OF_MEMORY;
-		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+		if (!chunk) { res = ERR_OUT_OF_MEMORY; goto failed; }
+		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 #ifdef EXTENDED_BLOCKS
-		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) return res;
+		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
 			if (upper[i]) {
 				if (!chunk->blocks2) {
 					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
-					if (!chunk->blocks2) return ERR_OUT_OF_MEMORY;
+					if (!chunk->blocks2) { res = ERR_OUT_OF_MEMORY; goto failed; }
 				}
 				break;
 			}
@@ -1067,5 +1094,16 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 #endif
 		chunk->modified = true;
 	}
+
+	/* Install the complete store before notifying renderer and gameplay code. */
+	InfiniteWorld_Current = previous;
+	World_SetInfiniteMapNoEvent(seed, INFINITE_WORLD_HEIGHT);
+	*previous = staged;
+	World_RaiseMapLoaded();
 	return 0;
+
+failed:
+	InfiniteWorld_Reset();
+	InfiniteWorld_Current = previous;
+	return res;
 }

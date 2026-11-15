@@ -73,6 +73,10 @@ CC_API void World_NewMap(void);
 /* Sets blocks array/dimensions of the map and raises WorldEvents.MapLoaded event */
 /* May also sets some environment settings like border/clouds height, if they are -1 */
 CC_API void World_SetNewMap(BlockRaw* blocks, int width, int height, int length);
+/* Initialises an infinite world without notifying listeners that loading is complete. */
+void World_SetInfiniteMapNoEvent(int seed, int height);
+/* Notifies listeners after the complete infinite-world store has been installed. */
+void World_RaiseMapLoaded(void);
 /* Initialises a generated infinite world with deterministic terrain and no finite block array. */
 void World_SetInfiniteMap(int seed, int height);
 /* Sets the various dimension and max coordinate related variables. */
