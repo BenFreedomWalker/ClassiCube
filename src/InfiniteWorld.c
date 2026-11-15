@@ -131,7 +131,7 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 				for (y = surface + 1; y < top; y++) {
 					index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
 						+ (z - (int)baseZ) * INFINITE_WORLD_CHUNK_SIZE + (x - (int)baseX);
-					if (blocks[index] == BLOCK_AIR || blocks[index] == BLOCK_LEAVES) blocks[index] = BLOCK_LOG;
+					if (blocks[index] == BLOCK_AIR || blocks[index] == BLOCK_LEAVES || blocks[index] == BLOCK_SNOW) blocks[index] = BLOCK_LOG;
 				}
 			}
 			for (y = top - 2; y <= top + 1; y++) {
