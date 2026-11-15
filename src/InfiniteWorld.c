@@ -264,6 +264,7 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
+	cc_bool desert, snowy;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
@@ -276,6 +277,8 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
 			worldX = (int)(baseX + x);
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			desert = InfiniteWorld_IsDesert(seed, worldX, worldZ);
+			snowy = !desert && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface);
 
 			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
 				index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x;
@@ -284,10 +287,10 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 				} else if (y < surface - 3) {
 					blocks[index] = BLOCK_STONE;
 				} else if (y < surface) {
-					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SANDSTONE : BLOCK_DIRT;
+					blocks[index] = desert ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
-					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SAND : BLOCK_GRASS;
-				} else if (y == surface + 1 && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) {
+					blocks[index] = desert ? BLOCK_SAND : BLOCK_GRASS;
+				} else if (y == surface + 1 && snowy) {
 					blocks[index] = BLOCK_SNOW;
 				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
 					blocks[index] = BLOCK_STILL_WATER;
