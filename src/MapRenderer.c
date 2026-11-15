@@ -469,6 +469,7 @@ static int InfiniteRenderMod(int value) {
 }
 static int InfiniteRenderSlot(int cx, int cy, int cz) {
 	return cy * INFINITE_RENDER_LAYER + InfiniteRenderMod(cx) * INFINITE_RENDER_WIDTH + InfiniteRenderMod(cz);
+}
 /* Block coordinates are signed 32-bit, so the outermost chunk indices
    cannot be expanded into another chunk without overflowing. */
 #define INFINITE_MIN_CHUNK (-134217728)
@@ -479,7 +480,6 @@ static int ClampInfiniteCentre(int centre) {
 	if (centre > INFINITE_MAX_CHUNK - INFINITE_RENDER_RADIUS)
 		return INFINITE_MAX_CHUNK - INFINITE_RENDER_RADIUS;
 	return centre;
-}
 }
 static void InitInfiniteChunks(int centreX, int centreZ) {
 	int cx, cy, cz, index;
