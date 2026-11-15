@@ -60,6 +60,11 @@ static cc_bool InfiniteWorld_IsDesert(int seed, int x, int z) {
 	return InfiniteWorld_Noise(seed ^ 0x3C6EF372u, x, z, 256) > 70;
 }
 
+static cc_bool InfiniteWorld_IsSnowy(int seed, int x, int z, int surface) {
+	int temperature = InfiniteWorld_Noise(seed ^ 0xA54FF53Au, x, z, 192);
+	return surface >= 38 && temperature < -24;
+}
+
 static int InfiniteWorld_SurfaceHeight(int seed, int x, int z) {
 	int broad = InfiniteWorld_Noise(seed, x, z, 96);
 	int detail = InfiniteWorld_Noise(seed ^ 0x51ED270Bu, x, z, 24);
@@ -282,6 +287,8 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
 					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SAND : BLOCK_GRASS;
+				} else if (y == surface + 1 && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) {
+					blocks[index] = BLOCK_SNOW;
 				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
 					blocks[index] = BLOCK_STILL_WATER;
 				} else {
