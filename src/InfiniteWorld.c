@@ -762,6 +762,9 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		if ((res = Stream_Read(stream, coords, sizeof(coords)))) return res;
 		chunkX = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[0]);
 		chunkZ = (int)(cc_int32)InfiniteWorld_ReadU32(&coords[4]);
+		/* Reject chunk coordinates whose 16-block extent exceeds signed block space. */
+		if (chunkX < -134217728 || chunkX > 134217727 ||
+			chunkZ < -134217728 || chunkZ > 134217727) return ERR_INVALID_ARGUMENT;
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
 		if (!chunk) return ERR_OUT_OF_MEMORY;
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) return res;
