@@ -9,11 +9,22 @@
 #include "ExtMath.h"
 #include "Physics.h"
 #include "Game.h"
+#include "Chat.h"
 #include "TexturePack.h"
 #include "Window.h"
 
 struct _WorldData World;
 static char nameBuffer[STRING_SIZE];
+static cc_bool InfiniteBlockWarningShown;
+
+/* World_SetBlock has no return value, so report an infinite-store failure once
+   rather than silently dropping a player or physics block update. */
+static void World_SetInfiniteBlock(int x, int y, int z, BlockID block) {
+	if (InfiniteWorld_SetBlock(x, y, z, block)) return;
+	if (InfiniteBlockWarningShown || y < 0 || y >= World.Height) return;
+	InfiniteBlockWarningShown = true;
+	Chat_AddRaw("Infinite world: block update failed (chunk unavailable or out of memory).");
+}
 /*########################################################################################################################*
 *----------------------------------------------------------World----------------------------------------------------------*
 *#########################################################################################################################*/
@@ -39,6 +50,7 @@ static void GenerateNewUuid(void) {
 }
 
 void World_Reset(void) {
+	InfiniteBlockWarningShown = false;
 	InfiniteWorld_Reset();
 	World.Infinite = false;
 #ifdef EXTENDED_BLOCKS
@@ -151,7 +163,7 @@ static CC_NOINLINE void LazyInitUpper(int i, BlockID block) {
 
 void World_SetBlock(int x, int y, int z, BlockID block) {
 	int i;
-	if (World.Infinite) { InfiniteWorld_SetBlock(x, y, z, block); return; }
+	if (World.Infinite) { World_SetInfiniteBlock(x, y, z, block); return; }
 	i = World_Pack(x, y, z);
 	World.Blocks[i] = (BlockRaw)block;
 
@@ -165,7 +177,7 @@ void World_SetBlock(int x, int y, int z, BlockID block) {
 }
 #else
 void World_SetBlock(int x, int y, int z, BlockID block) {
-	if (World.Infinite) { InfiniteWorld_SetBlock(x, y, z, block); return; }
+	if (World.Infinite) { World_SetInfiniteBlock(x, y, z, block); return; }
 	World.Blocks[World_Pack(x, y, z)] = block; 
 }
 #endif
