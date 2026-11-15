@@ -150,6 +150,8 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 		}
 	}
 }
+static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor);
+
 /* Flower patches are anchored to an absolute 8x8 world grid. Each chunk
    checks a small halo of patch origins, so a cluster crossing a chunk edge
    appears identically regardless of which chunk is generated first. */
@@ -175,11 +177,15 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 			anchorZ = gz * 8 + ((anchorHash >> 3) & 7u);
 			for (attempt = 0; attempt < 8; attempt++) {
 				cc_uint32 offsetHash = anchorHash ^ (cc_uint32)(attempt * 0x85EBCA77u);
-				int worldX = (int)anchorX + (int)(offsetHash & 7u) - 3;
-				int worldZ = (int)anchorZ + (int)((offsetHash >> 8) & 7u) - 3;
-				cc_uint32 hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
-				int surface, y, x, z, index;
-				if (worldX < baseX || worldX >= endX || worldZ < baseZ || worldZ >= endZ) continue;
+				cc_int64 candidateX = anchorX + (int)(offsetHash & 7u) - 3;
+				cc_int64 candidateZ = anchorZ + (int)((offsetHash >> 8) & 7u) - 3;
+				cc_uint32 hash;
+				int worldX, worldZ, surface, y, x, z, index;
+				if (candidateX < Int32_MinValue || candidateX > Int32_MaxValue ||
+					candidateZ < Int32_MinValue || candidateZ > Int32_MaxValue) continue;
+				if (candidateX < baseX || candidateX >= endX || candidateZ < baseZ || candidateZ >= endZ) continue;
+				worldX = (int)candidateX; worldZ = (int)candidateZ;
+				hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
 				surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 				if (surface <= INFINITE_WORLD_WATER_LEVEL ||
 					InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
