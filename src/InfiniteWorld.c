@@ -113,6 +113,7 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 		for (anchorX = baseX - 2; anchorX <= xEnd + 1; anchorX++) {
 			cc_uint32 hash;
 			int x, z, surface, height, top, y, radius, index;
+			cc_bool forest;
 			if (anchorX < Int32_MinValue || anchorX > Int32_MaxValue ||
 				anchorZ < Int32_MinValue || anchorZ > Int32_MaxValue) continue;
 			x = (int)anchorX; z = (int)anchorZ;
@@ -120,8 +121,9 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 			surface = InfiniteWorld_SurfaceHeight(seed, x, z);
 			if (surface <= INFINITE_WORLD_WATER_LEVEL || InfiniteWorld_IsDesert(seed, x, z) ||
 				InfiniteWorld_IsBeach(surface)) continue;
-			if ((hash & 255u) >= (InfiniteWorld_IsForest(seed, x, z) ? 10u : 2u)) continue;
-			height = 5 + (int)((hash >> 8) % 3u);
+			forest = InfiniteWorld_IsForest(seed, x, z);
+			if ((hash & 255u) >= (forest ? 10u : 2u)) continue;
+			height = forest ? 6 + (int)((hash >> 8) % 4u) : 5 + (int)((hash >> 8) % 3u);
 			top = surface + height;
 			if (top + 1 >= INFINITE_WORLD_HEIGHT) continue;
 			/* Trunks may replace leaves from an overlapping tree. */
