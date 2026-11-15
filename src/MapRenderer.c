@@ -472,8 +472,9 @@ static int InfiniteRenderSlot(int cx, int cy, int cz) {
 }
 /* Block coordinates are signed 32-bit, so the outermost chunk indices
    cannot be expanded into another chunk without overflowing. */
-#define INFINITE_MIN_CHUNK (-134217728)
-#define INFINITE_MAX_CHUNK 134217727
+/* Keep the mesh builder's one-block halo inside signed block coordinates. */
+#define INFINITE_MIN_CHUNK (-134217727)
+#define INFINITE_MAX_CHUNK 134217726
 static int ClampInfiniteCentre(int centre) {
 	if (centre < INFINITE_MIN_CHUNK + INFINITE_RENDER_RADIUS)
 		return INFINITE_MIN_CHUNK + INFINITE_RENDER_RADIUS;
