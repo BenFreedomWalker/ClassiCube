@@ -470,8 +470,21 @@ static int InfiniteRenderMod(int value) {
 static int InfiniteRenderSlot(int cx, int cy, int cz) {
 	return cy * INFINITE_RENDER_LAYER + InfiniteRenderMod(cx) * INFINITE_RENDER_WIDTH + InfiniteRenderMod(cz);
 }
+/* Block coordinates are signed 32-bit, so the outermost chunk indices
+   cannot be expanded into another chunk without overflowing. */
+#define INFINITE_MIN_CHUNK (-134217728)
+#define INFINITE_MAX_CHUNK 134217727
+static int ClampInfiniteCentre(int centre) {
+	if (centre < INFINITE_MIN_CHUNK + INFINITE_RENDER_RADIUS)
+		return INFINITE_MIN_CHUNK + INFINITE_RENDER_RADIUS;
+	if (centre > INFINITE_MAX_CHUNK - INFINITE_RENDER_RADIUS)
+		return INFINITE_MAX_CHUNK - INFINITE_RENDER_RADIUS;
+	return centre;
+}
 static void InitInfiniteChunks(int centreX, int centreZ) {
 	int cx, cy, cz, index;
+	centreX = ClampInfiniteCentre(centreX);
+	centreZ = ClampInfiniteCentre(centreZ);
 	for (cy = 0; cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE; cy++)
 	 for (cx = centreX - INFINITE_RENDER_RADIUS; cx <= centreX + INFINITE_RENDER_RADIUS; cx++)
 	  for (cz = centreZ - INFINITE_RENDER_RADIUS; cz <= centreZ + INFINITE_RENDER_RADIUS; cz++) {
@@ -485,6 +498,8 @@ static void InitInfiniteChunks(int centreX, int centreZ) {
 }
 static void RecenterInfiniteChunks(int centreX, int centreZ) {
 	int cx, cy, cz, index, x, y, z;
+	centreX = ClampInfiniteCentre(centreX);
+	centreZ = ClampInfiniteCentre(centreZ);
 	if (!infiniteSlotsInitialised) { InitInfiniteChunks(centreX, centreZ); return; }
 	for (cy = 0; cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE; cy++)
 	 for (cx = centreX - INFINITE_RENDER_RADIUS; cx <= centreX + INFINITE_RENDER_RADIUS; cx++)
@@ -772,7 +787,9 @@ void MapRenderer_RefreshChunk(int cx, int cy, int cz) {
 	if (!mapChunks) return;
 	if (World.Infinite) {
 		int index;
-		if (cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
+		if (cx < INFINITE_MIN_CHUNK || cx > INFINITE_MAX_CHUNK ||
+			cz < INFINITE_MIN_CHUNK || cz > INFINITE_MAX_CHUNK ||
+			cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
 		index = InfiniteRenderSlot(cx, cy, cz); chunk = &mapChunks[index];
 		if (chunk->centreX != cx * CHUNK_SIZE + HALF_CHUNK_SIZE || chunk->centreY != cy * CHUNK_SIZE + HALF_CHUNK_SIZE ||
 			chunk->centreZ != cz * CHUNK_SIZE + HALF_CHUNK_SIZE) return;
