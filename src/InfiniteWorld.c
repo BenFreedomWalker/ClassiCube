@@ -126,6 +126,65 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 		}
 	}
 }
+/* Ore clusters use a fixed 8-block 3D grid. Each chunk evaluates the
+   neighbouring cluster centres too, keeping veins continuous at edges. */
+static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor) {
+	cc_int64 q = value / divisor;
+	if (value < 0 && value % divisor) q--;
+	return q;
+}
+
+static void InfiniteWorld_GenerateOres(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 gx, gz;
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 3, 8);
+	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 2, 8);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 3, 8);
+	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 2, 8);
+	int gy;
+	for (gy = 0; gy < 8; gy++) {
+		int centerY = gy * 8 + 4;
+		for (gz = minGZ; gz <= maxGZ; gz++) {
+			for (gx = minGX; gx <= maxGX; gx++) {
+				cc_uint32 hash = InfiniteWorld_Hash(seed ^ (int)((cc_uint32)gy * 0x9E3779B9u), (int)gx, (int)gz);
+				cc_int64 centerX = gx * 8 + 4;
+				cc_int64 centerZ = gz * 8 + 4;
+				BlockRaw ore;
+				int radius, dx, dy, dz;
+				cc_uint32 roll = hash % 100u;
+				if (roll < 18u) {
+					ore = BLOCK_COAL_ORE; radius = 1 + (int)((hash >> 8) % 2u);
+				} else if (roll < 25u) {
+					ore = BLOCK_IRON_ORE; radius = 1 + (int)((hash >> 8) % 2u);
+				} else if (roll < 28u) {
+					ore = BLOCK_GOLD_ORE; radius = 1;
+				} else {
+					continue;
+				}
+				for (dy = -radius; dy <= radius; dy++) {
+					int y = centerY + dy;
+					if (y <= 0 || y >= INFINITE_WORLD_HEIGHT) continue;
+					for (dz = -radius; dz <= radius; dz++) {
+						cc_int64 worldZ = centerZ + dz;
+						if (worldZ < baseZ || worldZ >= endZ) continue;
+						for (dx = -radius; dx <= radius; dx++) {
+							cc_int64 worldX = centerX + dx;
+							int index;
+							if (worldX < baseX || worldX >= endX) continue;
+							if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
+							index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
+								+ (int)(worldZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(worldX - baseX);
+							if (blocks[index] == BLOCK_STONE) blocks[index] = ore;
+						}
+					}
+				}
+			}
+		}
+	}
+}
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
@@ -159,6 +218,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			}
 		}
 	}
+	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
 	return true;
 }
