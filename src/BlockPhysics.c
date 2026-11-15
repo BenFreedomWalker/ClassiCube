@@ -180,7 +180,15 @@ static void InfinitePhysics_Fall(int x, int y, int z) {
 }
 
 static void InfinitePhysics_Queue(int x, int y, int z, BlockID block) {
-	int tail;
+	int i, tail;
+	/* A liquid can be reached from several neighbours in the same tick.
+	   Keep only one pending update per coordinate to avoid queue saturation. */
+	for (i = 0; i < infinitePhysicsCount; i++) {
+		int index = (infinitePhysicsHead + i) % INFINITE_PHYSICS_QUEUE_SIZE;
+		if (infinitePhysicsQueue[index].x == x &&
+			infinitePhysicsQueue[index].y == y &&
+			infinitePhysicsQueue[index].z == z) return;
+	}
 	if (infinitePhysicsCount == INFINITE_PHYSICS_QUEUE_SIZE) return;
 	tail = (infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE;
 	infinitePhysicsQueue[tail].x = x; infinitePhysicsQueue[tail].y = y; infinitePhysicsQueue[tail].z = z;
