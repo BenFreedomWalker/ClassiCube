@@ -38,10 +38,10 @@ static int InfiniteWorld_Lerp(int a, int b, int t) {
 static int InfiniteWorld_Noise(int seed, int x, int z, int scale) {
 	int gx = InfiniteWorld_FloorDiv(x, scale);
 	int gz = InfiniteWorld_FloorDiv(z, scale);
-	int tx = x - gx * scale;
-	int tz = z - gz * scale;
-	int fx = (tx << 16) / scale;
-	int fz = (tz << 16) / scale;
+	cc_int64 tx = (cc_int64)x - (cc_int64)gx * scale;
+	cc_int64 tz = (cc_int64)z - (cc_int64)gz * scale;
+	int fx = (int)((tx << 16) / scale);
+	int fz = (int)((tz << 16) / scale);
 	int a, b, c, d, top, bottom;
 
 	fx = InfiniteWorld_Smooth(fx);
