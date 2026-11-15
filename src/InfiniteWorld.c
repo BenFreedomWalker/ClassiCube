@@ -136,7 +136,8 @@ static int InfiniteWorld_Seed;
 static cc_bool InfiniteWorld_Active;
 static cc_uint64 InfiniteWorld_AccessCounter;
 static int InfiniteWorld_ResidentChunks;
-#define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 512
+/* Keep the full 21x21x4 renderer window resident, with room for border reads. */
+#define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 
 void InfiniteWorld_Reset(void) {
 	int i;
