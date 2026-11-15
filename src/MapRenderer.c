@@ -807,7 +807,9 @@ void MapRenderer_OnBlockChanged(int x, int y, int z, BlockID block) {
 	if (World.Infinite) {
 		cx = InfiniteWorld_ChunkCoord(x); cy = y >> CHUNK_SHIFT; cz = InfiniteWorld_ChunkCoord(z);
 		lx = InfiniteWorld_LocalCoord(x); ly = y & CHUNK_MASK; lz = InfiniteWorld_LocalCoord(z);
-		if (cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
+		if (cx < INFINITE_MIN_CHUNK || cx > INFINITE_MAX_CHUNK ||
+			cz < INFINITE_MIN_CHUNK || cz > INFINITE_MAX_CHUNK ||
+			cy < 0 || cy >= INFINITE_WORLD_HEIGHT / CHUNK_SIZE) return;
 		chunk = &mapChunks[InfiniteRenderSlot(cx, cy, cz)];
 		if (chunk->centreX != cx * CHUNK_SIZE + HALF_CHUNK_SIZE || chunk->centreY != cy * CHUNK_SIZE + HALF_CHUNK_SIZE ||
 			chunk->centreZ != cz * CHUNK_SIZE + HALF_CHUNK_SIZE) return;
