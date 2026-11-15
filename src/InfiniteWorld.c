@@ -105,7 +105,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 					blocks[index] = BLOCK_DIRT;
 				} else if (y == surface) {
 					blocks[index] = BLOCK_GRASS;
-				} else if (y <= 30) {
+				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
 					blocks[index] = BLOCK_STILL_WATER;
 				} else {
 					blocks[index] = BLOCK_AIR;

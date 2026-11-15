@@ -1,6 +1,7 @@
 #include "Entity.h"
 #include "ExtMath.h"
 #include "World.h"
+#include "InfiniteWorld.h"
 #include "Block.h"
 #include "Event.h"
 #include "Game.h"
@@ -1133,8 +1134,14 @@ void LocalPlayers_MoveToSpawn(struct LocationUpdate* update) {
 Vec3 LocalPlayer_CalcDefaultSpawn(struct LocalPlayer* p) {
 	float x = World.Infinite ? 0.5f : (World.Width / 2) + 0.5f;
 	float z = World.Infinite ? 0.5f : (World.Length / 2) + 0.5f;
-
-	return Respawn_FindSpawnPosition(x, z, p->Base.Size);
+	Vec3 spawn = Respawn_FindSpawnPosition(x, z, p->Base.Size);
+	if (World.Infinite) {
+		BlockID block = World_GetBlock((int)x, (int)spawn.y, (int)z);
+		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER) {
+			spawn.y = INFINITE_WORLD_WATER_LEVEL + 1.0f;
+		}
+	}
+	return spawn;
 }
 
 
