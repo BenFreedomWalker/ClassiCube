@@ -206,7 +206,7 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 }
 /* Rare mushrooms grow on stone floors inside dry cave sections. Their
    placement is derived from world coordinates, not chunk load order. */
-static void InfiniteWorld_GenerateMushrooms(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+static void InfiniteWorld_GenerateMushrooms(int seed, int chunkX, int chunkZ, BlockRaw* blocks, const cc_uint8* surfaceHeights) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 	int x, y, z, worldX, worldZ, surface, index, plane = INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE;
@@ -215,7 +215,7 @@ static void InfiniteWorld_GenerateMushrooms(int seed, int chunkX, int chunkZ, Bl
 		worldZ = (int)(baseZ + z);
 		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
 			worldX = (int)(baseX + x);
-			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			surface = surfaceHeights[z * INFINITE_WORLD_CHUNK_SIZE + x];
 			for (y = 2; y < surface - 2 && y < INFINITE_WORLD_HEIGHT - 1; y++) {
 				index = y * plane + z * INFINITE_WORLD_CHUNK_SIZE + x;
 				if (blocks[index] != BLOCK_AIR || blocks[index - plane] != BLOCK_STONE ||
@@ -360,6 +360,7 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
+	cc_uint8 surfaceHeights[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
 	cc_bool desert, beach, snowy;
 	cc_uint32 surfaceHash;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
@@ -374,6 +375,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
 			worldX = (int)(baseX + x);
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			surfaceHeights[z * INFINITE_WORLD_CHUNK_SIZE + x] = (cc_uint8)surface;
 			desert = InfiniteWorld_IsDesert(seed, worldX, worldZ);
 			beach = !desert && InfiniteWorld_IsBeach(surface);
 			surfaceHash = InfiniteWorld_Hash(seed ^ 0xBB67AE85u, worldX, worldZ);
@@ -405,7 +407,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateFlowers(seed, chunkX, chunkZ, blocks);
-	InfiniteWorld_GenerateMushrooms(seed, chunkX, chunkZ, blocks);
+	InfiniteWorld_GenerateMushrooms(seed, chunkX, chunkZ, blocks, surfaceHeights);
 	return true;
 }
 
