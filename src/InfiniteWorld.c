@@ -56,6 +56,10 @@ static int InfiniteWorld_Noise(int seed, int x, int z, int scale) {
 	return InfiniteWorld_Lerp(top, bottom, fz) - 128;
 }
 
+static cc_bool InfiniteWorld_IsDesert(int seed, int x, int z) {
+	return InfiniteWorld_Noise(seed ^ 0x3C6EF372u, x, z, 256) > 70;
+}
+
 static int InfiniteWorld_SurfaceHeight(int seed, int x, int z) {
 	int broad = InfiniteWorld_Noise(seed, x, z, 96);
 	int detail = InfiniteWorld_Noise(seed ^ 0x51ED270Bu, x, z, 24);
@@ -98,7 +102,7 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 			hash = InfiniteWorld_Hash(seed ^ 0x2C9277B5u, x, z);
 			if ((hash & 255u) >= 2u) continue;
 			surface = InfiniteWorld_SurfaceHeight(seed, x, z);
-			if (surface <= INFINITE_WORLD_WATER_LEVEL) continue;
+			if (surface <= INFINITE_WORLD_WATER_LEVEL || InfiniteWorld_IsDesert(seed, x, z)) continue;
 			height = 5 + (int)((hash >> 8) % 3u);
 			top = surface + height;
 			if (top + 1 >= INFINITE_WORLD_HEIGHT) continue;
@@ -241,7 +245,7 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 							if (ox * ox + oy * oy + oz * oz > radius * radius) continue;
 							index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
 								+ (int)(worldZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(worldX - baseX);
-							if (blocks[index] == BLOCK_STONE || blocks[index] == BLOCK_DIRT) {
+							if (blocks[index] == BLOCK_STONE || blocks[index] == BLOCK_DIRT || blocks[index] == BLOCK_SANDSTONE) {
 								/* Low cave sections intersect the deterministic aquifer table. */
 								blocks[index] = y <= 5 ? BLOCK_STILL_LAVA : (y <= 12 ? BLOCK_STILL_WATER : BLOCK_AIR);
 							}
@@ -275,9 +279,9 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 				} else if (y < surface - 3) {
 					blocks[index] = BLOCK_STONE;
 				} else if (y < surface) {
-					blocks[index] = BLOCK_DIRT;
+					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
-					blocks[index] = BLOCK_GRASS;
+					blocks[index] = InfiniteWorld_IsDesert(seed, worldX, worldZ) ? BLOCK_SAND : BLOCK_GRASS;
 				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
 					blocks[index] = BLOCK_STILL_WATER;
 				} else {
