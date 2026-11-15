@@ -179,8 +179,8 @@ static CC_NOINLINE void BuildClouds(void) {
 	if (!World.Loaded || EnvRenderer_Minimal) return;
 
 	extent = Utils_AdjViewDist(Game_ViewDistance);
-	x1 = -extent; x2 = World.Width  + extent;
-	z1 = -extent; z2 = World.Length + extent;
+	x1 = -extent; x2 = World.Infinite ? extent : World.Width  + extent;
+	z1 = -extent; z2 = World.Infinite ? extent : World.Length + extent;
 	clouds_vertices = CalcNumVertices(x2 - x1, z2 - z1);
 
 	clouds_vb = Gfx_TryCreateStaticVb(VERTEX_FORMAT_TEXTURED, clouds_vertices);
@@ -194,6 +194,7 @@ static CC_NOINLINE void BuildClouds(void) {
 }
 
 void EnvRenderer_RenderClouds(void) {
+	struct Matrix m;
 	float offset;
 	if (Env.CloudsHeight < -2000 || !clouds_tex) return;
 
@@ -209,7 +210,16 @@ void EnvRenderer_RenderClouds(void) {
 	Gfx_BindTexture(clouds_tex);
 	Gfx_SetVertexFormat(VERTEX_FORMAT_TEXTURED);
 	Gfx_BindVb(clouds_vb);
+	if (World.Infinite) {
+		m = Gfx.View;
+		m.row4.x += Camera.CurrentPos.x * m.row1.x + Camera.CurrentPos.z * m.row3.x;
+		m.row4.y += Camera.CurrentPos.x * m.row1.y + Camera.CurrentPos.z * m.row3.y;
+		m.row4.z += Camera.CurrentPos.x * m.row1.z + Camera.CurrentPos.z * m.row3.z;
+		m.row4.w += Camera.CurrentPos.x * m.row1.w + Camera.CurrentPos.z * m.row3.w;
+		Gfx_LoadMatrix(MATRIX_VIEW, &m);
+	}
 	Gfx_DrawVb_IndexedTris(clouds_vertices);
+	if (World.Infinite) Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
 	Gfx_SetAlphaTest(false);
 	Gfx_DisableTextureOffset();
 }
@@ -249,8 +259,8 @@ static CC_NOINLINE void BuildSky(void) {
 	if (!World.Loaded || EnvRenderer_Minimal) return;
 
 	extent = Utils_AdjViewDist(Game_ViewDistance);
-	x1 = -extent; x2 = World.Width  + extent;
-	z1 = -extent; z2 = World.Length + extent;
+	x1 = -extent; x2 = World.Infinite ? extent : World.Width  + extent;
+	z1 = -extent; z2 = World.Infinite ? extent : World.Length + extent;
 	sky_vertices = CalcNumVertices(x2 - x1, z2 - z1);
 
 	sky_vb = Gfx_TryCreateStaticVb(VERTEX_FORMAT_COLOURED, sky_vertices);
@@ -259,7 +269,7 @@ static CC_NOINLINE void BuildSky(void) {
 	data   = (struct VertexColoured*)Gfx_LockVb(sky_vb,
 										VERTEX_FORMAT_COLOURED, sky_vertices);
 
-	height = max((World.Height + 2), Env.CloudsHeight) + 6;
+	height = max(((World.Infinite ? INFINITE_WORLD_HEIGHT : World.Height) + 2), Env.CloudsHeight) + 6;
 	DrawSkyY(x1, z1, x2, z2, height, data);
 	Gfx_UnlockVb(sky_vb);
 }
@@ -274,12 +284,22 @@ void EnvRenderer_RenderSky(void) {
 		if (!sky_vb) return;
 	}
 
-	normY = (float)World.Height + 8.0f;
+	normY = (float)(World.Infinite ? INFINITE_WORLD_HEIGHT : World.Height) + 8.0f;
 	skyY  = max(Camera.CurrentPos.y + 8.0f, normY);
 	Gfx_SetVertexFormat(VERTEX_FORMAT_COLOURED);
 	Gfx_BindVb(sky_vb);
 
-	if (skyY == normY) {
+	if (World.Infinite) {
+		m = Gfx.View;
+		dy = skyY - normY;
+		m.row4.x += Camera.CurrentPos.x * m.row1.x + dy * m.row2.x + Camera.CurrentPos.z * m.row3.x;
+		m.row4.y += Camera.CurrentPos.x * m.row1.y + dy * m.row2.y + Camera.CurrentPos.z * m.row3.y;
+		m.row4.z += Camera.CurrentPos.x * m.row1.z + dy * m.row2.z + Camera.CurrentPos.z * m.row3.z;
+		m.row4.w += Camera.CurrentPos.x * m.row1.w + dy * m.row2.w + Camera.CurrentPos.z * m.row3.w;
+		Gfx_LoadMatrix(MATRIX_VIEW, &m);
+		Gfx_DrawVb_IndexedTris(sky_vertices);
+		Gfx_LoadMatrix(MATRIX_VIEW, &Gfx.View);
+	} else if (skyY == normY) {
 		Gfx_DrawVb_IndexedTris(sky_vertices);
 	} else {
 		m  = Gfx.View;
