@@ -663,7 +663,7 @@ static cc_bool InfiniteWorld_InsertChunkSlot(int chunkX, int chunkZ, int chunkIn
 	return true;
 }
 
-static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep) {
+static void InfiniteWorld_EvictChunks(struct InfiniteWorld_Chunk* keep) {
 	while (InfiniteWorld_ResidentChunks > INFINITE_WORLD_MAX_RESIDENT_CHUNKS) {
 		int attempts = InfiniteWorld_ResidentChunks;
 		cc_uint64 cutoff = InfiniteWorld_AccessCounter;
@@ -753,7 +753,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	if (chunk) {
 		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) return NULL;
 		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
-		InfiniteWorld_EvictGeneratedChunks(chunk);
+		InfiniteWorld_EvictChunks(chunk);
 		return chunk;
 	}
 
@@ -788,7 +788,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	}
 	InfiniteWorld_ChunksCount++;
 	InfiniteWorld_ResidentChunks++;
-	InfiniteWorld_EvictGeneratedChunks(chunk);
+	InfiniteWorld_EvictChunks(chunk);
 	return chunk;
 }
 
