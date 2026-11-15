@@ -85,10 +85,11 @@ int InfiniteWorld_LocalCoord(int blockCoord) {
 static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 xEnd = baseX + INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 zEnd = baseZ + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 anchorX, anchorZ, leafX, leafZ;
-	int x0 = (int)baseX, z0 = (int)baseZ;
-	for (anchorZ = baseZ - 2; anchorZ <= baseZ + INFINITE_WORLD_CHUNK_SIZE + 1; anchorZ++) {
-		for (anchorX = baseX - 2; anchorX <= baseX + INFINITE_WORLD_CHUNK_SIZE + 1; anchorX++) {
+	for (anchorZ = baseZ - 2; anchorZ <= zEnd + 1; anchorZ++) {
+		for (anchorX = baseX - 2; anchorX <= xEnd + 1; anchorX++) {
 			cc_uint32 hash;
 			int x, z, surface, height, top, y, radius, index;
 			if (anchorX < Int32_MinValue || anchorX > Int32_MaxValue ||
@@ -102,11 +103,10 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 			top = surface + height;
 			if (top + 1 >= INFINITE_WORLD_HEIGHT) continue;
 			/* Trunks may replace leaves from an overlapping tree. */
-			if (x >= x0 && x < x0 + INFINITE_WORLD_CHUNK_SIZE &&
-				z >= z0 && z < z0 + INFINITE_WORLD_CHUNK_SIZE) {
+			if (anchorX >= baseX && anchorX < xEnd && anchorZ >= baseZ && anchorZ < zEnd) {
 				for (y = surface + 1; y < top; y++) {
 					index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
-						+ (z - z0) * INFINITE_WORLD_CHUNK_SIZE + (x - x0);
+						+ (z - (int)baseZ) * INFINITE_WORLD_CHUNK_SIZE + (x - (int)baseX);
 					if (blocks[index] == BLOCK_AIR || blocks[index] == BLOCK_LEAVES) blocks[index] = BLOCK_LOG;
 				}
 			}
@@ -114,11 +114,11 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 				radius = y >= top ? 1 : 2;
 				for (leafZ = anchorZ - radius; leafZ <= anchorZ + radius; leafZ++) {
 					for (leafX = anchorX - radius; leafX <= anchorX + radius; leafX++) {
-						if (leafX < x0 || leafX >= x0 + INFINITE_WORLD_CHUNK_SIZE ||
-							leafZ < z0 || leafZ >= z0 + INFINITE_WORLD_CHUNK_SIZE || y < 0 || y >= INFINITE_WORLD_HEIGHT) continue;
+						if (leafX < baseX || leafX >= xEnd || leafZ < baseZ || leafZ >= zEnd ||
+							y < 0 || y >= INFINITE_WORLD_HEIGHT) continue;
 						x = (int)leafX; z = (int)leafZ;
 						index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE
-							+ (z - z0) * INFINITE_WORLD_CHUNK_SIZE + (x - x0);
+							+ (z - (int)baseZ) * INFINITE_WORLD_CHUNK_SIZE + (x - (int)baseX);
 						if (blocks[index] == BLOCK_AIR) blocks[index] = BLOCK_LEAVES;
 					}
 				}
