@@ -136,6 +136,7 @@ static int InfiniteWorld_Seed;
 static cc_bool InfiniteWorld_Active;
 static cc_uint64 InfiniteWorld_AccessCounter;
 static int InfiniteWorld_ResidentChunks;
+static int InfiniteWorld_NextCompactAt = 4096;
 /* Keep the full 21x21x4 renderer window resident, with room for border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 2048
 
@@ -158,6 +159,7 @@ void InfiniteWorld_Reset(void) {
 	InfiniteWorld_Active = false;
 	InfiniteWorld_AccessCounter = 0;
 	InfiniteWorld_ResidentChunks = 0;
+	InfiniteWorld_NextCompactAt = 4096;
 }
 
 void InfiniteWorld_Init(int seed) {
@@ -239,10 +241,56 @@ static void InfiniteWorld_EvictGeneratedChunks(struct InfiniteWorld_Chunk* keep)
 	}
 }
 
+/* Evicted generated chunks need no persistent metadata: their contents are
+   reproducible from the seed. Periodically discard those records so travelling
+   through a large world does not grow the coordinate index forever. */
+static void InfiniteWorld_CompactChunks(void) {
+	struct InfiniteWorld_Chunk* oldChunks, *newChunks;
+	int i, live = 0, out = 0;
+	cc_uint32 capacity;
+
+	if (InfiniteWorld_ChunksCount < InfiniteWorld_NextCompactAt) return;
+	InfiniteWorld_NextCompactAt = InfiniteWorld_ChunksCount + 1024;
+	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+		if (InfiniteWorld_Chunks[i].blocks || InfiniteWorld_Chunks[i].modified) live++;
+	}
+	if (live * 2 >= InfiniteWorld_ChunksCount) return;
+
+	newChunks = (struct InfiniteWorld_Chunk*)Mem_TryAlloc((cc_uint32)live, sizeof(struct InfiniteWorld_Chunk));
+	if (!newChunks && live) return;
+	for (i = 0; i < InfiniteWorld_ChunksCount; i++) {
+		struct InfiniteWorld_Chunk* chunk = &InfiniteWorld_Chunks[i];
+		if (!chunk->blocks && !chunk->modified) continue;
+		newChunks[out++] = *chunk;
+	}
+
+	oldChunks = InfiniteWorld_Chunks;
+	InfiniteWorld_Chunks = newChunks;
+	InfiniteWorld_ChunksCount = live;
+	InfiniteWorld_ChunksCapacity = live;
+	capacity = 32;
+	while (capacity < (cc_uint32)live * 2) {
+		if (capacity > 0x7FFFFFFFu) {
+			InfiniteWorld_Chunks = oldChunks;
+			return;
+		}
+		capacity *= 2;
+	}
+	if (!InfiniteWorld_RebuildChunkSlots(capacity)) {
+		InfiniteWorld_Chunks = oldChunks;
+		/* The old coordinate table remains valid because it still indexes
+		   the original array, which is restored above. */
+		return;
+	}
+	Mem_Free(oldChunks);
+}
+
+
 static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
 	struct InfiniteWorld_Chunk* chunk;
 	BlockRaw* blocks;
 	if (!InfiniteWorld_Active) return NULL;
+	InfiniteWorld_CompactChunks();
 	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
 	if (chunk) {
 		if (!chunk->blocks) {
