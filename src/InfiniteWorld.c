@@ -175,6 +175,29 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 		}
 	}
 }
+/* Rare mushrooms grow on stone floors inside dry cave sections. Their
+   placement is derived from world coordinates, not chunk load order. */
+static void InfiniteWorld_GenerateMushrooms(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
+	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
+	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
+	int x, y, z, worldX, worldZ, surface, index, plane = INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE;
+	cc_uint32 hash;
+	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
+		worldZ = (int)(baseZ + z);
+		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
+			worldX = (int)(baseX + x);
+			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
+			for (y = 2; y < surface - 2 && y < INFINITE_WORLD_HEIGHT - 1; y++) {
+				index = y * plane + z * INFINITE_WORLD_CHUNK_SIZE + x;
+				if (blocks[index] != BLOCK_AIR || blocks[index - plane] != BLOCK_STONE ||
+					blocks[index + plane] != BLOCK_AIR) continue;
+				hash = InfiniteWorld_Hash(seed ^ (int)(0x9E3779B9u * (cc_uint32)y), worldX, worldZ);
+				if ((hash & 1023u) != 0u) continue;
+				blocks[index] = (hash & 2048u) ? BLOCK_RED_SHROOM : BLOCK_BROWN_SHROOM;
+			}
+		}
+	}
+}
 /* Ore clusters use a fixed 8-block 3D grid. Each chunk evaluates the
    neighbouring cluster centres too, keeping veins continuous at edges. */
 static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor) {
@@ -349,6 +372,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	InfiniteWorld_GenerateOres(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateTrees(seed, chunkX, chunkZ, blocks);
 	InfiniteWorld_GenerateFlowers(seed, chunkX, chunkZ, blocks);
+	InfiniteWorld_GenerateMushrooms(seed, chunkX, chunkZ, blocks);
 	return true;
 }
 
