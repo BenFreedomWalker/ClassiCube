@@ -329,6 +329,10 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 				if (caveY > 53) caveY = 53;
 
 				if ((h & 7u) == 0u) continue;
+				/* Most nearby cave worms never enter this chunk. Reject their
+				   bounding spheres before visiting individual carve voxels. */
+				if (caveX + radius < baseX || caveX - radius >= endX ||
+					caveZ + radius < baseZ || caveZ - radius >= endZ) continue;
 				for (oy = -radius; oy <= radius; oy++) {
 					int y = caveY + oy;
 					if (y <= 0 || y >= INFINITE_WORLD_HEIGHT) continue;
