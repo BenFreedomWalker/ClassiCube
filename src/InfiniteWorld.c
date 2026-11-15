@@ -152,7 +152,7 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 }
 static cc_int64 InfiniteWorld_FloorDiv64(cc_int64 value, int divisor);
 
-/* Flower patches are anchored to an absolute 8x8 world grid. Each chunk
+/* Flower patches are anchored to an absolute 16x16 world grid. Each chunk
    checks a small halo of patch origins, so a cluster crossing a chunk edge
    appears identically regardless of which chunk is generated first. */
 static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
@@ -161,9 +161,9 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 	cc_int64 endX = baseX + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 endZ = baseZ + INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 gx, gz;
-	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 19, 16);
+	cc_int64 minGX = InfiniteWorld_FloorDiv64(baseX - 4, 16);
 	cc_int64 maxGX = InfiniteWorld_FloorDiv64(endX + 2, 16);
-	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 19, 16);
+	cc_int64 minGZ = InfiniteWorld_FloorDiv64(baseZ - 4, 16);
 	cc_int64 maxGZ = InfiniteWorld_FloorDiv64(endZ + 2, 16);
 	int attempt;
 	for (gz = minGZ; gz <= maxGZ; gz++) {
@@ -185,7 +185,7 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 					candidateZ < Int32_MinValue || candidateZ > Int32_MaxValue) continue;
 				if (candidateX < baseX || candidateX >= endX || candidateZ < baseZ || candidateZ >= endZ) continue;
 				worldX = (int)candidateX; worldZ = (int)candidateZ;
-				if (attempt >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 8 : 2)) continue;
+				if (attempt >= (InfiniteWorld_IsForest(seed, worldX, worldZ) ? 4 : 2)) continue;
 				hash = InfiniteWorld_Hash(seed ^ (int)(0xBB67AE85u + attempt * 0x9E3779B9u), worldX, worldZ);
 				surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 				if (surface <= INFINITE_WORLD_WATER_LEVEL ||
