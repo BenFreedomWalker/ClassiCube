@@ -14,6 +14,7 @@
 #include "Vectors.h"
 #include "Chat.h"
 #include "Audio.h"
+#include "Entity.h"
 
 /* Data for a resizable queue, used for liquid physic tick entries. */
 struct TickQueue {
@@ -263,6 +264,80 @@ static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid, 
 	InfinitePhysics_SpreadTo(x, y, z - 1, liquid, flow + 1);
 	InfinitePhysics_SpreadTo(x, y, z + 1, liquid, flow + 1);
 }
+/* Coordinate-based random ticks for the active area of an infinite world.
+   Sampling is bounded per frame and centred on the local player. */
+#define INFINITE_RANDOM_TICK_BUDGET 64
+#define INFINITE_RANDOM_TICK_RADIUS 80
+
+static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
+	BlockID below;
+	int i, count, height;
+	IVec3 coords[TREE_MAX_COUNT];
+	BlockRaw blocks[TREE_MAX_COUNT];
+
+	if (InfinitePhysics_IsFalling(block)) {
+		InfinitePhysics_Fall(x, y, z);
+		return;
+	}
+	if (InfinitePhysics_IsLiquid(block)) {
+		InfinitePhysics_Queue(x, y, z, block, 0);
+		return;
+	}
+	if (block == BLOCK_DIRT) {
+		if (Lighting.IsLit(x, y, z)) Game_UpdateBlock(x, y, z, BLOCK_GRASS);
+		return;
+	}
+	if (block == BLOCK_GRASS) {
+		if (!Lighting.IsLit(x, y, z)) Game_UpdateBlock(x, y, z, BLOCK_DIRT);
+		return;
+	}
+	if (block == BLOCK_DANDELION || block == BLOCK_ROSE) {
+		if (!Lighting.IsLit(x, y, z)) {
+			Game_UpdateBlock(x, y, z, BLOCK_AIR);
+		} else {
+			below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_DIRT;
+			if (below != BLOCK_DIRT && below != BLOCK_GRASS) Game_UpdateBlock(x, y, z, BLOCK_AIR);
+		}
+		return;
+	}
+	if (block == BLOCK_RED_SHROOM || block == BLOCK_BROWN_SHROOM) {
+		if (Lighting.IsLit(x, y, z)) {
+			Game_UpdateBlock(x, y, z, BLOCK_AIR);
+			return;
+		}
+		below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_STONE;
+		if (below != BLOCK_STONE && below != BLOCK_COBBLE) Game_UpdateBlock(x, y, z, BLOCK_AIR);
+		return;
+	}
+	if (block != BLOCK_SAPLING) return;
+
+	below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_AIR;
+	/* Saplings stay alive on dirt. */
+	if (below == BLOCK_DIRT) return;
+	Game_UpdateBlock(x, y, z, BLOCK_AIR);
+	if (below != BLOCK_GRASS || !Lighting.IsLit(x, y, z)) return;
+
+	height = 5 + Random_Next(&physics_rnd, 3);
+	if (!TreeGen_CanGrow(x, y, z, height)) return;
+	count = TreeGen_Grow(x, y, z, height, coords, blocks);
+	for (i = 0; i < count; i++)
+		Game_UpdateBlock(coords[i].x, coords[i].y, coords[i].z, blocks[i]);
+}
+
+static void InfinitePhysics_TickRandomBlocks(void) {
+	Vec3 position;
+	int i, x, y, z, radius = INFINITE_RANDOM_TICK_RADIUS;
+	if (!Entities.CurPlayer) return;
+	position = Entities.CurPlayer->Base.Position;
+
+	for (i = 0; i < INFINITE_RANDOM_TICK_BUDGET; i++) {
+		x = (int)position.x + Random_Next(&physics_rnd, radius * 2 + 1) - radius;
+		y = Random_Next(&physics_rnd, World.Height);
+		z = (int)position.z + Random_Next(&physics_rnd, radius * 2 + 1) - radius;
+		InfinitePhysics_RandomTick(x, y, z, World_GetBlock(x, y, z));
+	}
+}
+
 static void InfinitePhysics_Tick(void) {
 	int i, count = min(infinitePhysicsCount, INFINITE_PHYSICS_TICK_BUDGET);
 	for (i = 0; i < count; i++) {
@@ -729,7 +804,7 @@ void Physics_Free(void) {
 
 void Physics_Tick(void) {
 	if (!Physics.Enabled) return;
-	if (World.Infinite) { InfinitePhysics_Tick(); physics_tickCount++; return; }
+	if (World.Infinite) { InfinitePhysics_Tick(); InfinitePhysics_TickRandomBlocks(); physics_tickCount++; return; }
 	if (!World.Blocks) return;
 
 	/*if ((tickCount % 5) == 0) {*/
