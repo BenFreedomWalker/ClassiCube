@@ -883,9 +883,11 @@ static float PhysicsComp_LowestModifier(struct PhysicsComp* comp, struct AABB* b
 	IVec3_Floor(&bbMin, &bounds->Min);
 	IVec3_Floor(&bbMax, &bounds->Max);	
 
-	bbMin.x = max(bbMin.x, 0); bbMax.x = min(bbMax.x, World.MaxX);
+	if (!World.Infinite) {
+		bbMin.x = max(bbMin.x, 0); bbMax.x = min(bbMax.x, World.MaxX);
+		bbMin.z = max(bbMin.z, 0); bbMax.z = min(bbMax.z, World.MaxZ);
+	}
 	bbMin.y = max(bbMin.y, 0); bbMax.y = min(bbMax.y, World.MaxY);
-	bbMin.z = max(bbMin.z, 0); bbMax.z = min(bbMax.z, World.MaxZ);
 	
 	for (y = bbMin.y; y <= bbMax.y; y++) { v.y = (float)y;
 		for (z = bbMin.z; z <= bbMax.z; z++) { v.z = (float)z;
