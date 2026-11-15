@@ -522,7 +522,7 @@ static void Render3DFrame(float delta, float t) {
 
 	/* Render water over translucent blocks when under the water outside the map for proper alpha blending */
 	pos = Camera.CurrentPos;
-	if (pos.y < Env.EdgeHeight && (pos.x < 0 || pos.z < 0 || pos.x > World.Width || pos.z > World.Length)) {
+	if (!World.Infinite && pos.y < Env.EdgeHeight && (pos.x < 0 || pos.z < 0 || pos.x > World.Width || pos.z > World.Length)) {
 		MapRenderer_RenderTranslucent(delta);
 		EnvRenderer_RenderMapEdges();
 	} else {
