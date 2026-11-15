@@ -157,6 +157,7 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 			if (surface <= INFINITE_WORLD_WATER_LEVEL ||
 				InfiniteWorld_IsDesert(seed, worldX, worldZ) ||
+				InfiniteWorld_IsBeach(surface) ||
 				InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface)) continue;
 			y = surface + 1;
 			if (y >= INFINITE_WORLD_HEIGHT) continue;
@@ -297,6 +298,7 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	int x, y, z, worldX, worldZ, surface, index;
 	cc_bool desert, beach, snowy;
+	cc_uint32 surfaceHash;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
@@ -310,8 +312,8 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 			worldX = (int)(baseX + x);
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
 			desert = InfiniteWorld_IsDesert(seed, worldX, worldZ);
-			beach = !desert && surface >= INFINITE_WORLD_WATER_LEVEL - 3 &&
-				surface <= INFINITE_WORLD_WATER_LEVEL + 2;
+			beach = !desert && InfiniteWorld_IsBeach(surface);
+			surfaceHash = InfiniteWorld_Hash(seed ^ 0xBB67AE85u, worldX, worldZ);
 			snowy = !desert && !beach && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface);
 
 			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
@@ -323,7 +325,9 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 				} else if (y < surface) {
 					blocks[index] = (desert || beach) ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
-					blocks[index] = (desert || beach) ? BLOCK_SAND : BLOCK_GRASS;
+					blocks[index] = desert ? BLOCK_SAND :
+						(beach && (surfaceHash & 7u) == 0u) ? BLOCK_GRAVEL :
+						beach ? BLOCK_SAND : BLOCK_GRASS;
 				} else if (y == surface + 1 && snowy) {
 					blocks[index] = BLOCK_SNOW;
 				} else if (y <= INFINITE_WORLD_WATER_LEVEL) {
