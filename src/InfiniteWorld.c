@@ -293,8 +293,70 @@ static void InfiniteWorld_GenerateOres(int seed, int chunkX, int chunkZ, BlockRa
 		}
 	}
 }
-/* Cave worms are seeded by a fixed 32x32 world grid. Every chunk evaluates
-   nearby worms from their origins, so tunnels continue across chunk edges. */
+/* Cave worms are seeded by a fixed 32x32 world grid. Their deterministic
+   paths are cached so neighbouring chunks reuse the same worm calculations. */
+#define INFINITE_CAVE_CACHE_SIZE 64
+#define INFINITE_CAVE_MAX_STEPS 80
+struct InfiniteWorld_CaveStep {
+	cc_int8 offsetX, offsetZ;
+	cc_uint8 y, radius, carve;
+};
+struct InfiniteWorld_CavePath {
+	int seed, gridX, gridZ;
+	cc_int64 originX, originZ;
+	cc_uint8 length;
+	cc_bool valid;
+	struct InfiniteWorld_CaveStep steps[INFINITE_CAVE_MAX_STEPS];
+};
+static struct InfiniteWorld_CavePath InfiniteWorld_CaveCache[INFINITE_CAVE_CACHE_SIZE];
+static int InfiniteWorld_CaveCacheNext;
+
+static struct InfiniteWorld_CavePath* InfiniteWorld_GetCavePath(int seed, int gridX, int gridZ) {
+	struct InfiniteWorld_CavePath* path;
+	cc_uint32 origin;
+	cc_int64 caveX, caveZ;
+	int caveY, length, vx = 0, vy = 0, vz = 0, step, index;
+	for (index = 0; index < INFINITE_CAVE_CACHE_SIZE; index++) {
+		path = &InfiniteWorld_CaveCache[index];
+		if (path->valid && path->seed == seed && path->gridX == gridX && path->gridZ == gridZ) return path;
+	}
+	path = &InfiniteWorld_CaveCache[InfiniteWorld_CaveCacheNext];
+	if (++InfiniteWorld_CaveCacheNext >= INFINITE_CAVE_CACHE_SIZE) InfiniteWorld_CaveCacheNext = 0;
+	path->valid = false;
+	path->seed = seed; path->gridX = gridX; path->gridZ = gridZ;
+	origin = InfiniteWorld_Hash(seed ^ 0x6D2B79F5u, gridX, gridZ);
+	path->originX = (cc_int64)gridX * 32 + (origin & 31u);
+	path->originZ = (cc_int64)gridZ * 32 + ((origin >> 5) & 31u);
+	caveX = path->originX; caveZ = path->originZ;
+	caveY = 7 + (int)((origin >> 10) % 42u);
+	length = 40 + (int)((origin >> 18) % 41u);
+	for (step = 0; step < length; step++) {
+		cc_uint32 h = InfiniteWorld_Hash(seed ^ (int)(0x9E3779B9u * (cc_uint32)(step + 1)), gridX, gridZ);
+		int dx = (int)(h % 3u) - 1;
+		int dy = (int)((h >> 2) % 3u) - 1;
+		int dz = (int)((h >> 4) % 3u) - 1;
+		int radius = (step > 0 && (step % 16) == 0 && ((h >> 12) & 3u) == 0u)
+			? 3 : 1 + (int)(((h >> 8) % 3u) == 0u);
+		struct InfiniteWorld_CaveStep* item = &path->steps[step];
+		vx += dx; if (vx < -3) vx = -3; if (vx > 3) vx = 3;
+		vy += dy; if (vy < -2) vy = -2; if (vy > 2) vy = 2;
+		vz += dz; if (vz < -3) vz = -3; if (vz > 3) vz = 3;
+		caveX += vx / 2;
+		caveZ += vz / 2;
+		if (vy > 0) caveY++; else if (vy < 0) caveY--;
+		if (caveY < 5) caveY = 5;
+		if (caveY > 53) caveY = 53;
+		item->offsetX = (cc_int8)(caveX - path->originX);
+		item->offsetZ = (cc_int8)(caveZ - path->originZ);
+		item->y = (cc_uint8)caveY;
+		item->radius = (cc_uint8)radius;
+		item->carve = (h & 7u) != 0u;
+	}
+	path->length = (cc_uint8)length;
+	path->valid = true;
+	return path;
+}
+
 static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
@@ -308,40 +370,21 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 
 	for (gz = minGZ; gz <= maxGZ; gz++) {
 		for (gx = minGX; gx <= maxGX; gx++) {
-			cc_uint32 origin = InfiniteWorld_Hash(seed ^ 0x6D2B79F5u, (int)gx, (int)gz);
-			cc_int64 caveX = gx * 32 + (origin & 31u);
-			cc_int64 caveZ = gz * 32 + ((origin >> 5) & 31u);
-			int caveY = 7 + (int)((origin >> 10) % 42u);
-			int length = 40 + (int)((origin >> 18) % 41u);
-			int vx = 0, vy = 0, vz = 0;
+			struct InfiniteWorld_CavePath* path = InfiniteWorld_GetCavePath(seed, (int)gx, (int)gz);
 			int step;
-
-			for (step = 0; step < length; step++) {
-				cc_uint32 h = InfiniteWorld_Hash(seed ^ (int)(0x9E3779B9u * (cc_uint32)(step + 1)),
-					(int)gx, (int)gz);
-				int dx = (int)(h % 3u) - 1;
-				int dy = (int)((h >> 2) % 3u) - 1;
-				int dz = (int)((h >> 4) % 3u) - 1;
-				int radius = (step > 0 && (step % 16) == 0 && ((h >> 12) & 3u) == 0u)
-					? 3 : 1 + (int)(((h >> 8) % 3u) == 0u);
+			for (step = 0; step < path->length; step++) {
+				struct InfiniteWorld_CaveStep* item = &path->steps[step];
+				cc_int64 caveX = path->originX + item->offsetX;
+				cc_int64 caveZ = path->originZ + item->offsetZ;
+				int radius = item->radius;
 				int ox, oy, oz;
-
-				vx += dx; if (vx < -3) vx = -3; if (vx > 3) vx = 3;
-				vy += dy; if (vy < -2) vy = -2; if (vy > 2) vy = 2;
-				vz += dz; if (vz < -3) vz = -3; if (vz > 3) vz = 3;
-				caveX += vx / 2;
-				caveZ += vz / 2;
-				if (vy > 0) caveY++; else if (vy < 0) caveY--;
-				if (caveY < 5) caveY = 5;
-				if (caveY > 53) caveY = 53;
-
-				if ((h & 7u) == 0u) continue;
+				if (!item->carve) continue;
 				/* Most nearby cave worms never enter this chunk. Reject their
 				   bounding spheres before visiting individual carve voxels. */
 				if (caveX + radius < baseX || caveX - radius >= endX ||
 					caveZ + radius < baseZ || caveZ - radius >= endZ) continue;
 				for (oy = -radius; oy <= radius; oy++) {
-					int y = caveY + oy;
+					int y = item->y + oy;
 					if (y <= 0 || y >= INFINITE_WORLD_HEIGHT) continue;
 					for (oz = -radius; oz <= radius; oz++) {
 						cc_int64 worldZ = caveZ + oz;
