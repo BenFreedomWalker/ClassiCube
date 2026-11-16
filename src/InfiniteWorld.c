@@ -220,17 +220,23 @@ static void InfiniteWorld_GenerateFlowers(int seed, int chunkX, int chunkZ, Bloc
 static void InfiniteWorld_GenerateMushrooms(int seed, int chunkX, int chunkZ, BlockRaw* blocks, const cc_uint8* surfaceHeights) {
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
-	int x, y, z, worldX, worldZ, surface, index, plane = INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE;
+	int x, y, z, worldX, worldZ, surface, index, columnIndex;
 	cc_uint32 hash;
-	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
-		worldZ = (int)(baseZ + z);
-		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
-			worldX = (int)(baseX + x);
-			surface = surfaceHeights[z * INFINITE_WORLD_CHUNK_SIZE + x];
-			for (y = 2; y < surface - 2 && y < INFINITE_WORLD_HEIGHT - 1; y++) {
-				index = y * plane + z * INFINITE_WORLD_CHUNK_SIZE + x;
+	int plane = INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE;
+
+	/* The block store is y-major. Scan complete horizontal planes so mushroom
+	   checks follow contiguous memory instead of jumping between 64 planes. */
+	for (y = 2; y < INFINITE_WORLD_HEIGHT - 1; y++) {
+		for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
+			worldZ = (int)(baseZ + z);
+			for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
+				columnIndex = z * INFINITE_WORLD_CHUNK_SIZE + x;
+				surface = surfaceHeights[columnIndex];
+				if (y >= surface - 2) continue;
+				index = y * plane + columnIndex;
 				if (blocks[index] != BLOCK_AIR || blocks[index - plane] != BLOCK_STONE ||
 					blocks[index + plane] != BLOCK_AIR) continue;
+				worldX = (int)(baseX + x);
 				hash = InfiniteWorld_Hash(seed ^ (int)(0x9E3779B9u * (cc_uint32)y), worldX, worldZ);
 				if ((hash & 1023u) != 0u) continue;
 				blocks[index] = (hash & 2048u) ? BLOCK_RED_SHROOM : BLOCK_BROWN_SHROOM;
