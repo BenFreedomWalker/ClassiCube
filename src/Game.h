@@ -99,6 +99,8 @@ cc_bool Game_ReduceVRAM(void);
 void Game_SetViewDistance(int distance);
 void Game_UserSetViewDistance(int distance);
 void Game_Disconnect(const cc_string* title, const cc_string* reason);
+/* Resets game components without replacing the active world. */
+void Game_ResetComponents(void);
 void Game_Reset(void);
 void Plugins_LoadAll(void);
 

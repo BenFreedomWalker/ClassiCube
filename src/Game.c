@@ -209,13 +209,16 @@ void Game_Disconnect(const cc_string* title, const cc_string* reason) {
 	DisconnectScreen_Show(title, reason);
 }
 
-void Game_Reset(void) {
+void Game_ResetComponents(void) {
 	struct IGameComponent* comp;
-	World_NewMap();
-
 	for (comp = comps_head; comp; comp = comp->next) {
 		if (comp->Reset) comp->Reset();
 	}
+}
+
+void Game_Reset(void) {
+	World_NewMap();
+	Game_ResetComponents();
 }
 
 void Game_UpdateBlock(int x, int y, int z, BlockID block) {

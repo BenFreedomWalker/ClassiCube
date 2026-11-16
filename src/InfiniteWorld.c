@@ -4,6 +4,7 @@
 #include "World.h"
 #include "Stream.h"
 #include "Errors.h"
+#include "Game.h"
 
 /* Integer-only value noise keeps terrain identical across platforms and visits.
    Coordinates are absolute block coordinates, not relative to the loaded area.
@@ -1181,6 +1182,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	/* Install the complete store before notifying renderer and gameplay code. */
 	InfiniteWorld_Current = previous;
 	World_SetInfiniteMapNoEvent(seed, INFINITE_WORLD_HEIGHT);
+	Game_ResetComponents();
 	*previous = staged;
 	World_RaiseMapLoaded();
 	return 0;

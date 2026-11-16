@@ -63,6 +63,8 @@ struct MapImporter* MapImporter_Find(const cc_string* path) {
 	return NULL;
 }
 
+static cc_result IcW_Load(struct Stream* stream);
+
 cc_result Map_LoadFrom(const cc_string* path) {
 	cc_string relPath, fileName, fileExt;
 	struct LocationUpdate update = { 0 };
@@ -75,24 +77,29 @@ cc_result Map_LoadFrom(const cc_string* path) {
 	res = Stream_OpenPath(&stream, &raw_path);
 	if (res) { Logger_IOWarn2(res, "opening", &raw_path); return res; }
 
-	/* Do not tear down the current game if the requested file cannot be opened. */
-	Game_Reset();
-	spawn_point = &update;
-
+	/* Resolve the importer before changing the active game. */
 	imp = MapImporter_Find(path);
 	if (!imp) {
-		res = ERR_NOT_SUPPORTED;
-	} else if ((res = imp->import(&stream))) {
-		World_Reset();
+		(void)stream.Close(&stream);
+		return ERR_NOT_SUPPORTED;
 	}
+	/* ICW validates into a staging store and commits only after the full file is read. */
+	if (imp->import != IcW_Load) {
+		Game_Reset();
+		spawn_point = &update;
+	}
+	res = imp->import(&stream);
+	if (res && imp->import != IcW_Load) World_Reset();
 
 	/* No point logging error for closing readonly file */
 	(void)stream.Close(&stream);
-	if (res) Logger_IOWarn2(res, "decoding", &raw_path);
+	if (res) {
+		Logger_IOWarn2(res, "decoding", &raw_path);
+		return res;
+	}
 
 	if (!World.Infinite) World_SetNewMap(World.Blocks, World.Width, World.Height, World.Length);
 	LocalPlayers_MoveToSpawn(&update);
-
 	relPath = *path;
 	Utils_UNSAFE_GetFilename(&relPath);
 	String_UNSAFE_Separate(&relPath, '.', &fileName, &fileExt);
