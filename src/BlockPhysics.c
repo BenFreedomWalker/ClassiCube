@@ -99,6 +99,10 @@ static struct TickQueue lavaQ, waterQ;
 #define INFINITE_PHYSICS_TICK_BUDGET 32
 struct InfinitePhysicsEntry { int x, y, z; cc_uint8 delay, flow; };
 static struct InfinitePhysicsEntry infinitePhysicsQueue[INFINITE_PHYSICS_QUEUE_SIZE];
+#define INFINITE_PHYSICS_HASH_SIZE 8192
+struct InfinitePhysicsHashEntry { int x, y, z, queueIndex; cc_uint8 state; };
+static struct InfinitePhysicsHashEntry infinitePhysicsHash[INFINITE_PHYSICS_HASH_SIZE];
+static int infinitePhysicsHashTombstones;
 static int infinitePhysicsHead, infinitePhysicsCount;
 
 #define PHYSICS_DELAY_MASK 0xF8000000UL
@@ -112,6 +116,11 @@ static void Physics_OnNewMapLoaded(void* obj) {
 	TickQueue_Clear(&lavaQ);
 	TickQueue_Clear(&waterQ);
 	infinitePhysicsHead = infinitePhysicsCount = 0;
+	infinitePhysicsHashTombstones = 0;
+	{
+		int i;
+		for (i = 0; i < INFINITE_PHYSICS_HASH_SIZE; i++) infinitePhysicsHash[i].state = 0;
+	}
 
 	physics_maxWaterX = World.MaxX - 2;
 	physics_maxWaterY = World.MaxY - 2;
@@ -184,25 +193,76 @@ static void InfinitePhysics_Fall(int x, int y, int z) {
 	}
 }
 
-static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) {
-	int i, tail;
-	/* A liquid can be reached from several neighbours in the same tick.
-	   Keep only one pending update per coordinate to avoid queue saturation. */
+static cc_uint32 InfinitePhysics_Hash(int x, int y, int z) {
+	cc_uint32 h = (cc_uint32)x * 0x8DA6B343u;
+	h ^= (cc_uint32)y * 0xD8163841u;
+	h ^= (cc_uint32)z * 0xCB1AB31Fu;
+	h ^= h >> 16; h *= 0x7FEB352Du;
+	h ^= h >> 15; h *= 0x846CA68Bu;
+	h ^= h >> 16;
+	return h;
+}
+
+/* Hash slots: 0 = empty, 1 = occupied, 2 = tombstone. */
+static int InfinitePhysics_FindHashSlot(int x, int y, int z, cc_bool inserting) {
+	int slot = (int)(InfinitePhysics_Hash(x, y, z) & (INFINITE_PHYSICS_HASH_SIZE - 1));
+	int firstTombstone = -1, probes;
+	for (probes = 0; probes < INFINITE_PHYSICS_HASH_SIZE; probes++) {
+		struct InfinitePhysicsHashEntry* entry = &infinitePhysicsHash[slot];
+		if (!entry->state) return inserting && firstTombstone >= 0 ? firstTombstone : slot;
+		if (entry->state == 2) {
+			if (firstTombstone < 0) firstTombstone = slot;
+		} else if (entry->x == x && entry->y == y && entry->z == z) return slot;
+		slot = (slot + 1) & (INFINITE_PHYSICS_HASH_SIZE - 1);
+	}
+	return firstTombstone;
+}
+
+static void InfinitePhysics_InsertHash(int x, int y, int z, int queueIndex) {
+	int slot = InfinitePhysics_FindHashSlot(x, y, z, true);
+	struct InfinitePhysicsHashEntry* entry;
+	if (slot < 0) return;
+	entry = &infinitePhysicsHash[slot];
+	if (entry->state == 2) infinitePhysicsHashTombstones--;
+	entry->x = x; entry->y = y; entry->z = z; entry->queueIndex = queueIndex;
+	entry->state = 1;
+}
+
+static void InfinitePhysics_RebuildHash(void) {
+	int i;
+	for (i = 0; i < INFINITE_PHYSICS_HASH_SIZE; i++) infinitePhysicsHash[i].state = 0;
+	infinitePhysicsHashTombstones = 0;
 	for (i = 0; i < infinitePhysicsCount; i++) {
 		int index = (infinitePhysicsHead + i) % INFINITE_PHYSICS_QUEUE_SIZE;
-		if (infinitePhysicsQueue[index].x == x &&
-			infinitePhysicsQueue[index].y == y &&
-			infinitePhysicsQueue[index].z == z) {
-			if (flow < infinitePhysicsQueue[index].flow) infinitePhysicsQueue[index].flow = (cc_uint8)flow;
-			return;
-		}
+		struct InfinitePhysicsEntry* entry = &infinitePhysicsQueue[index];
+		InfinitePhysics_InsertHash(entry->x, entry->y, entry->z, index);
+	}
+}
+
+static void InfinitePhysics_RemoveHash(int x, int y, int z) {
+	int slot = InfinitePhysics_FindHashSlot(x, y, z, false);
+	if (slot < 0 || infinitePhysicsHash[slot].state != 1) return;
+	infinitePhysicsHash[slot].state = 2;
+	infinitePhysicsHashTombstones++;
+}
+
+static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) {
+	int slot, tail;
+	/* Avoid scanning the FIFO when a liquid is reached from several sides. */
+	slot = InfinitePhysics_FindHashSlot(x, y, z, false);
+	if (slot >= 0 && infinitePhysicsHash[slot].state == 1) {
+		struct InfinitePhysicsEntry* entry = &infinitePhysicsQueue[infinitePhysicsHash[slot].queueIndex];
+		if (flow < entry->flow) entry->flow = (cc_uint8)flow;
+		return;
 	}
 	if (infinitePhysicsCount == INFINITE_PHYSICS_QUEUE_SIZE) return;
+	if (infinitePhysicsHashTombstones > INFINITE_PHYSICS_HASH_SIZE / 4) InfinitePhysics_RebuildHash();
 	tail = (infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE;
 	infinitePhysicsQueue[tail].x = x; infinitePhysicsQueue[tail].y = y; infinitePhysicsQueue[tail].z = z;
 	infinitePhysicsQueue[tail].delay = (block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 30 : 5;
 	infinitePhysicsQueue[tail].flow = (cc_uint8)flow;
 	infinitePhysicsCount++;
+	InfinitePhysics_InsertHash(x, y, z, tail);
 }
 static cc_bool InfinitePhysics_IsLiquid(BlockID block) {
 	return block == BLOCK_WATER || block == BLOCK_STILL_WATER || block == BLOCK_LAVA || block == BLOCK_STILL_LAVA;
@@ -360,12 +420,17 @@ static void InfinitePhysics_Tick(void) {
 		struct InfinitePhysicsEntry entry = infinitePhysicsQueue[infinitePhysicsHead];
 		BlockID block;
 		infinitePhysicsHead = (infinitePhysicsHead + 1) % INFINITE_PHYSICS_QUEUE_SIZE; infinitePhysicsCount--;
+		InfinitePhysics_RemoveHash(entry.x, entry.y, entry.z);
 		block = World_GetBlock(entry.x, entry.y, entry.z);
 		if (!InfinitePhysics_IsLiquid(block)) continue;
 		if (entry.delay) {
 			entry.delay--;
-			infinitePhysicsQueue[(infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE] = entry;
-			infinitePhysicsCount++;
+			{
+				int tail = (infinitePhysicsHead + infinitePhysicsCount) % INFINITE_PHYSICS_QUEUE_SIZE;
+				infinitePhysicsQueue[tail] = entry;
+				infinitePhysicsCount++;
+				InfinitePhysics_InsertHash(entry.x, entry.y, entry.z, tail);
+			}
 		} else InfinitePhysics_ActivateLiquid(entry.x, entry.y, entry.z, block, entry.flow);
 	}
 }
