@@ -840,12 +840,21 @@ void MapRenderer_OnBlockChanged(int x, int y, int z, BlockID block) {
 			}
 		}
 
-		if (lx == 0)  MapRenderer_RefreshChunk(cx - 1, cy, cz);
-		if (lx == 15) MapRenderer_RefreshChunk(cx + 1, cy, cz);
-		if (ly == 0 && cy > 0) MapRenderer_RefreshChunk(cx, cy - 1, cz);
-		if (ly == 15 && cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE - 1) MapRenderer_RefreshChunk(cx, cy + 1, cz);
-		if (lz == 0)  MapRenderer_RefreshChunk(cx, cy, cz - 1);
-		if (lz == 15) MapRenderer_RefreshChunk(cx, cy, cz + 1);
+		{
+			int dxMin = lx == 0 ? -1 : 0, dxMax = lx == 15 ? 1 : 0;
+			int dyMin = ly == 0 && cy > 0 ? -1 : 0;
+			int dyMax = ly == 15 && cy < INFINITE_WORLD_HEIGHT / CHUNK_SIZE - 1 ? 1 : 0;
+			int dzMin = lz == 0 ? -1 : 0, dzMax = lz == 15 ? 1 : 0;
+			int dx, dy, dz;
+			for (dy = dyMin; dy <= dyMax; dy++) {
+				for (dz = dzMin; dz <= dzMax; dz++) {
+					for (dx = dxMin; dx <= dxMax; dx++) {
+						if (!dx && !dy && !dz) continue;
+						MapRenderer_RefreshChunk(cx + dx, cy + dy, cz + dz);
+					}
+				}
+			}
+		}
 		return;
 	}
 
