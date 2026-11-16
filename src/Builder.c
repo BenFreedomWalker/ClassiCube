@@ -334,28 +334,19 @@ static cc_bool ReadBorderChunkData(int x1, int y1, int z1, cc_bool* outAllAir) {
 	return false;
 }
 
-static cc_bool ReadInfiniteChunkData(int x1, int y1, int z1, cc_bool* outAllAir) {
+static cc_bool ReadInfiniteChunkData(int x1, int y1, int z1, cc_bool* outAllAir, cc_bool* outAllSolid) {
 	cc_bool allAir = true, allSolid = true;
-	int xx, yy, zz, x, y, z, cIndex;
+	int i;
 	BlockID block;
-
-	for (yy = -1; yy < 17; ++yy) {
-		y = yy + y1;
-		for (zz = -1; zz < 17; ++zz) {
-			z = zz + z1;
-			cIndex = Builder_PackChunk(-1, yy, zz);
-			for (xx = -1; xx < 17; ++xx, ++cIndex) {
-				x = xx + x1;
-				block = (unsigned)y < (unsigned)World.Height
-					? World_GetBlock(x, y, z) : BLOCK_AIR;
-				allAir   = allAir && Blocks.Draw[block] == DRAW_GAS;
-				allSolid = allSolid && Blocks.FullOpaque[block];
-				Builder_Chunk[cIndex] = block;
-			}
-		}
+	if (!InfiniteWorld_CopyMeshData(x1, y1, z1, Builder_Chunk)) return false;
+	for (i = 0; i < EXTCHUNK_SIZE_3; i++) {
+		block = Builder_Chunk[i];
+		allAir   = allAir && Blocks.Draw[block] == DRAW_GAS;
+		allSolid = allSolid && Blocks.FullOpaque[block];
 	}
 	*outAllAir = allAir;
-	return allSolid;
+	*outAllSolid = allSolid;
+	return true;
 }
 
 static void OutputChunkPartsMeta(int x, int y, int z, struct ChunkInfo* info) {
@@ -416,7 +407,7 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	if (World.Infinite) {
 		/* X/Z have no borders in an infinite world; only Y is bounded. */
 		Mem_Set(chunk, BLOCK_AIR, EXTCHUNK_SIZE_3 * sizeof(BlockID));
-		allSolid = ReadInfiniteChunkData(x1, y1, z1, &allAir);
+		if (!ReadInfiniteChunkData(x1, y1, z1, &allAir, &allSolid)) return false;
 		onBorder = y1 == 0 || y1 + CHUNK_SIZE >= World.Height;
 	} else {
 		onBorder =

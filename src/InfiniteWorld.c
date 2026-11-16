@@ -5,6 +5,7 @@
 #include "Stream.h"
 #include "Errors.h"
 #include "Game.h"
+#include "Constants.h"
 
 /* Integer-only value noise keeps terrain identical across platforms and visits.
    Coordinates are absolute block coordinates, not relative to the loaded area.
@@ -1006,6 +1007,61 @@ BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
 	if (chunk->blocks2) return (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
 #endif
 	return (BlockID)chunk->blocks[index];
+}
+
+/* Copies the builder's 18x18x18 mesh volume by resolving each intersecting
+   16x64x16 data chunk once, rather than looking up every individual block. */
+cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks) {
+	int minChunkX = InfiniteWorld_ChunkCoord(x1 - 1);
+	int maxChunkX = InfiniteWorld_ChunkCoord(x1 + 16);
+	int minChunkZ = InfiniteWorld_ChunkCoord(z1 - 1);
+	int maxChunkZ = InfiniteWorld_ChunkCoord(z1 + 16);
+	int cx, cz, x, y, z, xx, yy, zz, sourceIndex, destIndex, index;
+	struct InfiniteWorld_Chunk* chunk;
+	if (!blocks || !InfiniteWorld_Active) return false;
+
+	for (cz = minChunkZ; cz <= maxChunkZ; cz++) {
+		for (cx = minChunkX; cx <= maxChunkX; cx++) {
+			int chunkX = cx * INFINITE_WORLD_CHUNK_SIZE;
+			int chunkZ = cz * INFINITE_WORLD_CHUNK_SIZE;
+			int startX = x1 - 1 > chunkX ? x1 - 1 : chunkX;
+			int endX = x1 + 16 < chunkX + INFINITE_WORLD_CHUNK_SIZE - 1
+				? x1 + 16 : chunkX + INFINITE_WORLD_CHUNK_SIZE - 1;
+			int startZ = z1 - 1 > chunkZ ? z1 - 1 : chunkZ;
+			int endZ = z1 + 16 < chunkZ + INFINITE_WORLD_CHUNK_SIZE - 1
+				? z1 + 16 : chunkZ + INFINITE_WORLD_CHUNK_SIZE - 1;
+			chunk = InfiniteWorld_GetChunk(cx, cz);
+			if (!chunk) return false;
+
+			for (z = startZ; z <= endZ; z++) {
+				zz = z - (z1 - 1);
+				for (x = startX; x <= endX; x++) {
+					xx = x - (x1 - 1);
+					sourceIndex = InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE
+						+ InfiniteWorld_LocalCoord(x);
+					destIndex = zz * EXTCHUNK_SIZE + xx;
+					for (yy = -1; yy < 17; yy++) {
+						y = y1 + yy;
+						if ((unsigned)y >= (unsigned)INFINITE_WORLD_HEIGHT) {
+							blocks[(yy + 1) * EXTCHUNK_SIZE_2 + destIndex] = BLOCK_AIR;
+							continue;
+						}
+						index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE + sourceIndex;
+#ifdef EXTENDED_BLOCKS
+						if (chunk->blocks2) {
+							blocks[(yy + 1) * EXTCHUNK_SIZE_2 + destIndex] =
+								(BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
+						} else
+#endif
+						{
+							blocks[(yy + 1) * EXTCHUNK_SIZE_2 + destIndex] = (BlockID)chunk->blocks[index];
+						}
+					}
+				}
+			}
+		}
+	}
+	return true;
 }
 
 cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block) {
