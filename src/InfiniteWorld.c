@@ -309,19 +309,26 @@ struct InfiniteWorld_CavePath {
 	struct InfiniteWorld_CaveStep steps[INFINITE_CAVE_MAX_STEPS];
 };
 static struct InfiniteWorld_CavePath InfiniteWorld_CaveCache[INFINITE_CAVE_CACHE_SIZE];
-static int InfiniteWorld_CaveCacheNext;
+/* Four-way set association keeps path lookup bounded without making collisions
+   evict every other path in the same small part of the cache. */
+#define INFINITE_CAVE_CACHE_WAYS 4
+#define INFINITE_CAVE_CACHE_SETS (INFINITE_CAVE_CACHE_SIZE / INFINITE_CAVE_CACHE_WAYS)
+static cc_uint8 InfiniteWorld_CaveCacheNext[INFINITE_CAVE_CACHE_SETS];
 
 static struct InfiniteWorld_CavePath* InfiniteWorld_GetCavePath(int seed, int gridX, int gridZ) {
 	struct InfiniteWorld_CavePath* path;
-	cc_uint32 origin;
+	cc_uint32 origin, hash;
 	cc_int64 caveX, caveZ;
-	int caveY, length, vx = 0, vy = 0, vz = 0, step, index;
-	for (index = 0; index < INFINITE_CAVE_CACHE_SIZE; index++) {
-		path = &InfiniteWorld_CaveCache[index];
+	int caveY, length, vx = 0, vy = 0, vz = 0, step, set, way;
+	hash = InfiniteWorld_Hash(seed ^ 0x6D2B79F5u, gridX, gridZ);
+	set = hash % INFINITE_CAVE_CACHE_SETS;
+	for (way = 0; way < INFINITE_CAVE_CACHE_WAYS; way++) {
+		path = &InfiniteWorld_CaveCache[set * INFINITE_CAVE_CACHE_WAYS + way];
 		if (path->valid && path->seed == seed && path->gridX == gridX && path->gridZ == gridZ) return path;
 	}
-	path = &InfiniteWorld_CaveCache[InfiniteWorld_CaveCacheNext];
-	if (++InfiniteWorld_CaveCacheNext >= INFINITE_CAVE_CACHE_SIZE) InfiniteWorld_CaveCacheNext = 0;
+	way = InfiniteWorld_CaveCacheNext[set];
+	InfiniteWorld_CaveCacheNext[set] = (cc_uint8)((way + 1) % INFINITE_CAVE_CACHE_WAYS);
+	path = &InfiniteWorld_CaveCache[set * INFINITE_CAVE_CACHE_WAYS + way];
 	path->valid = false;
 	path->seed = seed; path->gridX = gridX; path->gridZ = gridZ;
 	origin = InfiniteWorld_Hash(seed ^ 0x6D2B79F5u, gridX, gridZ);
