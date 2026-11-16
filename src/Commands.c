@@ -18,6 +18,9 @@
 #include "Options.h"
 #include "Drawer2D.h"
 #include "Audio.h"
+#include "InfiniteWorld.h"
+#include "Platform.h"
+#include "Stream.h"
 
 #define COMMANDS_PREFIX "/client"
 #define COMMANDS_PREFIX_SPACE "/client "
@@ -801,6 +804,53 @@ static struct ChatCommand BlockEditCommand = {
 /*########################################################################################################################*
 *------------------------------------------------------Commands component-------------------------------------------------*
 *#########################################################################################################################*/
+static void SaveCommand_Execute(const cc_string* args, int argsCount) {
+	static const cc_string extension = String_FromConst(".icw");
+	struct Stream stream;
+	cc_filepath rawPath;
+	cc_result res, closeRes;
+
+	if (!argsCount || !args->length) {
+		Chat_AddRaw("&eUsage: &a/client save <filename.icw>");
+		return;
+	}
+	if (!World.Infinite) {
+		Chat_AddRaw("&eSave: only infinite worlds use the .icw format.");
+		return;
+	}
+	if (args->length >= NATIVE_STR_LEN || !String_CaselessEnds(args, &extension)) {
+		Chat_AddRaw("&eSave: provide a valid .icw filename.");
+		return;
+	}
+
+	Platform_EncodePath(&rawPath, args);
+	res = Stream_CreatePath(&stream, &rawPath);
+	if (res) {
+		Logger_IOWarn2(res, "creating", &rawPath);
+		Chat_AddRaw("&cSave failed. See the log for details.");
+		return;
+	}
+	res = InfiniteWorld_Save(&stream);
+	closeRes = stream.Close(&stream);
+	if (res) Logger_IOWarn2(res, "writing", &rawPath);
+	if (closeRes) Logger_IOWarn2(closeRes, "closing", &rawPath);
+	if (res || closeRes) {
+		Chat_AddRaw("&cSave failed. See the log for details.");
+	} else {
+		Chat_Add1("&aInfinite world saved to: &f%s", args);
+	}
+}
+
+static struct ChatCommand SaveCommand = {
+	"Save", SaveCommand_Execute,
+	COMMAND_FLAG_SINGLEPLAYER_ONLY | COMMAND_FLAG_UNSPLIT_ARGS,
+	{
+		"&a/client save <filename.icw>",
+		"&eSaves the current infinite world in ICW format.",
+		"&eThe path is relative to the game working directory unless absolute.",
+	}
+};
+
 static void OnInit(void) {
 	Commands_Register(&GpuInfoCommand);
 	Commands_Register(&HelpCommand);
@@ -813,6 +863,7 @@ static void OnInit(void) {
 	Commands_Register(&MotdCommand);
 	Commands_Register(&PlaceCommand);
 	Commands_Register(&BlockEditCommand);
+	Commands_Register(&SaveCommand);
 	Commands_Register(&CuboidCommand);
 	Commands_Register(&ReplaceCommand);
 }
