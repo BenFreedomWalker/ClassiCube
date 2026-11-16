@@ -40,6 +40,7 @@ struct ChunkInfo {
 	cc_int32 centreX, centreY, centreZ;
 	/* Stable mesh-part storage slot; independent of world coordinates. */
 	int slotIndex;
+	cc_uint32 retryFrame; /* frame at which a failed mesh build may be retried */
 
 	cc_uint8 visible : 1; /* Whether chunk is visible to the player */
 	cc_uint8 empty   : 1; /* Whether chunk is empty of data and is known to have no data */
