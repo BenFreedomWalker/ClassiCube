@@ -1186,19 +1186,22 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 #endif
 		} else {
 #ifdef EXTENDED_BLOCKS
-		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
-		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
-			if (upper[i]) {
-				if (!chunk->blocks2) {
+			if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
+			for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+				cc_uint16 block = (cc_uint16)chunk->blocks[i] | ((cc_uint16)upper[i] << 8);
+				if (block > BLOCK_MAX_DEFINED) { res = ERR_INVALID_ARGUMENT; goto failed; }
+				if (upper[i] && !chunk->blocks2) {
 					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
 					if (!chunk->blocks2) { res = ERR_OUT_OF_MEMORY; goto failed; }
 				}
-				break;
 			}
-		}
-		if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
+			if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
+#else
+			for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+				if (chunk->blocks[i] > BLOCK_MAX_DEFINED) { res = ERR_INVALID_ARGUMENT; goto failed; }
+			}
 #endif
-	}
+		}
 		chunk->modified = true;
 	}
 
