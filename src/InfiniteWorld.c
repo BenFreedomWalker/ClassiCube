@@ -299,7 +299,7 @@ static void InfiniteWorld_GenerateOres(int seed, int chunkX, int chunkZ, BlockRa
 }
 /* Cave worms are seeded by a fixed 32x32 world grid. Their deterministic
    paths are cached so neighbouring chunks reuse the same worm calculations. */
-#define INFINITE_CAVE_CACHE_SIZE 64
+#define INFINITE_CAVE_CACHE_SIZE 512
 #define INFINITE_CAVE_MAX_STEPS 80
 struct InfiniteWorld_CaveStep {
 	cc_int8 offsetX, offsetZ;
@@ -313,9 +313,9 @@ struct InfiniteWorld_CavePath {
 	struct InfiniteWorld_CaveStep steps[INFINITE_CAVE_MAX_STEPS];
 };
 static struct InfiniteWorld_CavePath InfiniteWorld_CaveCache[INFINITE_CAVE_CACHE_SIZE];
-/* Four-way set association keeps path lookup bounded without making collisions
-   evict every other path in the same small part of the cache. */
-#define INFINITE_CAVE_CACHE_WAYS 4
+/* Eight-way set association keeps lookup bounded while holding the cave-path
+   working set for adjacent chunks with fewer conflict evictions. */
+#define INFINITE_CAVE_CACHE_WAYS 8
 #define INFINITE_CAVE_CACHE_SETS (INFINITE_CAVE_CACHE_SIZE / INFINITE_CAVE_CACHE_WAYS)
 static cc_uint8 InfiniteWorld_CaveCacheNext[INFINITE_CAVE_CACHE_SETS];
 
