@@ -705,8 +705,8 @@ static int UpdateChunksStill(int* chunkUpdates) {
 
 static void UpdateChunks(float delta) {
 	struct LocalPlayer* p;
-
-	cc_bool samePos;	int chunkUpdates = 0;
+	cc_bool samePos;
+	int chunkUpdates = 0;
 	frameCounter++;
 
 	/* Build more chunks if 30 FPS or over, otherwise slowdown */
