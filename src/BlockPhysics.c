@@ -553,6 +553,7 @@ void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 			adjacent = World_GetBlock(x + 1, y, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x + 1, y, z, adjacent, 0);
 			adjacent = World_GetBlock(x, y, z - 1); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z - 1, adjacent, 0);
 			adjacent = World_GetBlock(x, y, z + 1); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z + 1, adjacent, 0);
+			adjacent = World_GetBlock(x, y + 1, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y + 1, z, adjacent, 0);
 			adjacent = World_GetBlock(x, y - 1, z); if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y - 1, z, adjacent, 0);
 		}
 		InfinitePhysics_ActivateAbove(x, y, z);
