@@ -71,12 +71,13 @@ cc_result Map_LoadFrom(const cc_string* path) {
 	cc_filepath raw_path;
 	cc_result res;
 
-	Game_Reset();
-	spawn_point = &update;
-
 	Platform_EncodePath(&raw_path, path);
 	res = Stream_OpenPath(&stream, &raw_path);
 	if (res) { Logger_IOWarn2(res, "opening", &raw_path); return res; }
+
+	/* Do not tear down the current game if the requested file cannot be opened. */
+	Game_Reset();
+	spawn_point = &update;
 
 	imp = MapImporter_Find(path);
 	if (!imp) {
