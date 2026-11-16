@@ -824,6 +824,10 @@ static void SaveCommand_Execute(const cc_string* args, int argsCount) {
 	}
 
 	Platform_EncodePath(&rawPath, args);
+	if (File_Exists(&rawPath)) {
+		Chat_AddRaw("&eSave: file already exists; choose another filename.");
+		return;
+	}
 	res = Stream_CreatePath(&stream, &rawPath);
 	if (res) {
 		Logger_IOWarn2(res, "creating", &rawPath);
