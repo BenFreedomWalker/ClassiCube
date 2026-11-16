@@ -98,6 +98,8 @@ static struct TickQueue lavaQ, waterQ;
 #define INFINITE_PHYSICS_QUEUE_INITIAL 4096
 #define INFINITE_PHYSICS_QUEUE_MAX 65536
 #define INFINITE_PHYSICS_TICK_BUDGET 32
+#define INFINITE_PHYSICS_TICK_BUDGET_MAX 64
+#define INFINITE_PHYSICS_BACKLOG_TICKS 5
 struct InfinitePhysicsEntry { int x, y, z; cc_uint32 dueTick; cc_uint8 flow, liquidType; };
 static struct InfinitePhysicsEntry* infinitePhysicsQueue;
 static int infinitePhysicsQueueSize, infinitePhysicsCount;
@@ -105,6 +107,7 @@ struct InfinitePhysicsHashEntry { int x, y, z, queueIndex; cc_uint8 state; };
 static struct InfinitePhysicsHashEntry* infinitePhysicsHash;
 static int infinitePhysicsHashSize, infinitePhysicsHashTombstones;
 static cc_uint32 infinitePhysicsTick;
+static int infinitePhysicsBacklogTicks;
 static cc_bool infinitePhysicsQueueWarning;
 
 #define PHYSICS_DELAY_MASK 0xF8000000UL
@@ -119,6 +122,7 @@ static void Physics_OnNewMapLoaded(void* obj) {
 	TickQueue_Clear(&waterQ);
 	infinitePhysicsCount = 0;
 	infinitePhysicsTick = 0;
+	infinitePhysicsBacklogTicks = 0;
 	infinitePhysicsHashTombstones = 0;
 	infinitePhysicsQueueWarning = false;
 	if (infinitePhysicsHash) {
@@ -580,8 +584,10 @@ static void InfinitePhysics_TickRandomBlocks(void) {
 
 static void InfinitePhysics_Tick(void) {
 	int processed = 0;
+	int budget = infinitePhysicsBacklogTicks >= INFINITE_PHYSICS_BACKLOG_TICKS ?
+		INFINITE_PHYSICS_TICK_BUDGET_MAX : INFINITE_PHYSICS_TICK_BUDGET;
 	infinitePhysicsTick++;
-	while (infinitePhysicsCount && processed < INFINITE_PHYSICS_TICK_BUDGET) {
+	while (infinitePhysicsCount && processed < budget) {
 		struct InfinitePhysicsEntry entry;
 		BlockID block;
 		if (InfinitePhysics_IsEarlier(infinitePhysicsTick, infinitePhysicsQueue[0].dueTick)) break;
@@ -590,6 +596,16 @@ static void InfinitePhysics_Tick(void) {
 		block = World_GetBlock(entry.x, entry.y, entry.z);
 		if (InfinitePhysics_IsLiquid(block))
 			InfinitePhysics_ActivateLiquid(entry.x, entry.y, entry.z, block, entry.flow);
+	}
+
+	/* Raise the budget only after sustained overdue work, then return to
+	   the normal budget as soon as the due queue has been drained. */
+	if (processed == budget && infinitePhysicsCount &&
+		!InfinitePhysics_IsEarlier(infinitePhysicsTick, infinitePhysicsQueue[0].dueTick)) {
+		if (infinitePhysicsBacklogTicks < INFINITE_PHYSICS_BACKLOG_TICKS)
+			infinitePhysicsBacklogTicks++;
+	} else {
+		infinitePhysicsBacklogTicks = 0;
 	}
 }
 
