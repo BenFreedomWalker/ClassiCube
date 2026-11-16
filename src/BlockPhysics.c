@@ -98,7 +98,7 @@ static struct TickQueue lavaQ, waterQ;
 #define INFINITE_PHYSICS_QUEUE_INITIAL 4096
 #define INFINITE_PHYSICS_QUEUE_MAX 65536
 #define INFINITE_PHYSICS_TICK_BUDGET 32
-struct InfinitePhysicsEntry { int x, y, z; cc_uint32 dueTick; cc_uint8 flow; };
+struct InfinitePhysicsEntry { int x, y, z; cc_uint32 dueTick; cc_uint8 flow, liquidType; };
 static struct InfinitePhysicsEntry* infinitePhysicsQueue;
 static int infinitePhysicsQueueSize, infinitePhysicsCount;
 struct InfinitePhysicsHashEntry { int x, y, z, queueIndex; cc_uint8 state; };
@@ -332,6 +332,7 @@ static struct InfinitePhysicsEntry InfinitePhysics_HeapPop(void) {
 }
 static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) {
 	int slot, delay;
+	cc_uint8 liquidType = (block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 1 : 0;
 	struct InfinitePhysicsEntry entry;
 	if (!infinitePhysicsQueueSize && !InfinitePhysics_EnsureCapacity()) {
 		if (!infinitePhysicsQueueWarning) { Chat_AddRaw("&cUnable to allocate the infinite liquid update queue"); infinitePhysicsQueueWarning = true; }
@@ -341,9 +342,11 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) 
 	if (slot >= 0 && infinitePhysicsHash[slot].state == 1) {
 		int index = infinitePhysicsHash[slot].queueIndex;
 		struct InfinitePhysicsEntry* queued = &infinitePhysicsQueue[index];
-		cc_uint32 dueTick = infinitePhysicsTick + ((block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 30u : 5u);
+		cc_uint32 dueTick = infinitePhysicsTick + (cc_uint32)delay;
 		if (flow < queued->flow) queued->flow = (cc_uint8)flow;
-		if (queued->dueTick != dueTick) {
+		/* Repeated notifications for the same liquid must not postpone its tick. */
+		if (queued->liquidType != liquidType) {
+			queued->liquidType = liquidType;
 			queued->dueTick = dueTick;
 			InfinitePhysics_HeapUpdate(index);
 		}
@@ -354,10 +357,11 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) 
 		return;
 	}
 	if (infinitePhysicsHashTombstones > infinitePhysicsHashSize / 4) InfinitePhysics_RebuildHash();
-	delay = (block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 30 : 5;
+	delay = liquidType ? 30 : 5;
 	entry.x = x; entry.y = y; entry.z = z;
 	entry.dueTick = infinitePhysicsTick + (cc_uint32)delay;
 	entry.flow = (cc_uint8)flow;
+	entry.liquidType = liquidType;
 	InfinitePhysics_HeapPush(entry);
 }
 
