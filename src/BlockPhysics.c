@@ -405,40 +405,54 @@ static void InfinitePhysics_ActivateLiquidsAround(int x, int y, int z) {
 
 /* Sponge interactions use world coordinates rather than finite-map indices. */
 static void InfinitePhysics_PlaceSponge(int x, int y, int z) {
-	int xx, yy, zz;
-	for (yy = y - 2; yy <= y + 2; yy++)
-	 for (zz = z - 2; zz <= z + 2; zz++)
-	  for (xx = x - 2; xx <= x + 2; xx++) {
+	cc_int64 xx, yy, zz;
+	for (yy = (cc_int64)y - 2; yy <= (cc_int64)y + 2; yy++)
+	 for (zz = (cc_int64)z - 2; zz <= (cc_int64)z + 2; zz++)
+	  for (xx = (cc_int64)x - 2; xx <= (cc_int64)x + 2; xx++) {
 		BlockID block;
-		if (!World_Contains(xx, yy, zz)) continue;
-		block = World_GetBlock(xx, yy, zz);
+		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
+			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
+		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
+		block = World_GetBlock((int)xx, (int)yy, (int)zz);
 		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
-			Game_UpdateBlock(xx, yy, zz, BLOCK_AIR);
+			Game_UpdateBlock((int)xx, (int)yy, (int)zz, BLOCK_AIR);
 	}
 }
 
 static void InfinitePhysics_DeleteSponge(int x, int y, int z) {
-	int xx, yy, zz;
-	for (yy = y - 3; yy <= y + 3; yy++)
-	 for (zz = z - 3; zz <= z + 3; zz++)
-	  for (xx = x - 3; xx <= x + 3; xx++) {
+	cc_int64 xx, yy, zz;
+	for (yy = (cc_int64)y - 3; yy <= (cc_int64)y + 3; yy++)
+	 for (zz = (cc_int64)z - 3; zz <= (cc_int64)z + 3; zz++)
+	  for (xx = (cc_int64)x - 3; xx <= (cc_int64)x + 3; xx++) {
 		BlockID block;
-		if (Math_AbsI(xx - x) != 3 && Math_AbsI(yy - y) != 3 && Math_AbsI(zz - z) != 3) continue;
-		if (!World_Contains(xx, yy, zz)) continue;
-		block = World_GetBlock(xx, yy, zz);
+		cc_int64 dx = xx - x, dy = yy - y, dz = zz - z;
+		if (dx < 0) dx = -dx;
+		if (dy < 0) dy = -dy;
+		if (dz < 0) dz = -dz;
+		if (dx != 3 && dy != 3 && dz != 3) continue;
+		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
+			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
+		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
+		block = World_GetBlock((int)xx, (int)yy, (int)zz);
 		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
-			InfinitePhysics_Queue(xx, yy, zz, block, 0);
+			InfinitePhysics_Queue((int)xx, (int)yy, (int)zz, block, 0);
 	}
 }
+
 static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
-	int xx, yy, zz;
+	cc_int64 xx, zz;
+	int yy;
 	BlockID block;
 	for (yy = max(0, y - 2); yy <= min(World.Height - 1, y + 2); yy++)
-	 for (zz = z - 2; zz <= z + 2; zz++)
-	  for (xx = x - 2; xx <= x + 2; xx++)
-		if (InfiniteWorld_TryGetBlock(xx, yy, zz, &block) && block == BLOCK_SPONGE) return true;
+	 for (zz = (cc_int64)z - 2; zz <= (cc_int64)z + 2; zz++)
+	  for (xx = (cc_int64)x - 2; xx <= (cc_int64)x + 2; xx++) {
+		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
+			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
+		if (InfiniteWorld_TryGetBlock((int)xx, yy, (int)zz, &block) && block == BLOCK_SPONGE) return true;
+	}
 	return false;
 }
+
 static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int flow) {
 	BlockID other;
 	if (!World_Contains(x, y, z)) return;
