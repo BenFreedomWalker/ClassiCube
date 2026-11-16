@@ -334,6 +334,7 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) 
 	int slot, delay;
 	cc_uint8 liquidType = (block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 1 : 0;
 	struct InfinitePhysicsEntry entry;
+	delay = liquidType ? 30 : 5;
 	if (!infinitePhysicsQueueSize && !InfinitePhysics_EnsureCapacity()) {
 		if (!infinitePhysicsQueueWarning) { Chat_AddRaw("&cUnable to allocate the infinite liquid update queue"); infinitePhysicsQueueWarning = true; }
 		return;
@@ -357,7 +358,6 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) 
 		return;
 	}
 	if (infinitePhysicsHashTombstones > infinitePhysicsHashSize / 4) InfinitePhysics_RebuildHash();
-	delay = liquidType ? 30 : 5;
 	entry.x = x; entry.y = y; entry.z = z;
 	entry.dueTick = infinitePhysicsTick + (cc_uint32)delay;
 	entry.flow = (cc_uint8)flow;
