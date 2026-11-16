@@ -595,7 +595,7 @@ void Physics_OnBlockChanged(int x, int y, int z, BlockID old, BlockID now) {
 		if (InfinitePhysics_IsLiquid(now)) InfinitePhysics_Queue(x, y, z, now, 0);
 		if (now == BLOCK_SPONGE) InfinitePhysics_PlaceSponge(x, y, z);
 		if (old == BLOCK_SPONGE && now != BLOCK_SPONGE) InfinitePhysics_DeleteSponge(x, y, z);
-		if (now == BLOCK_AIR) InfinitePhysics_ActivateLiquidsAround(x, y, z);
+		if (Blocks.Draw[now] == DRAW_GAS) InfinitePhysics_ActivateLiquidsAround(x, y, z);
 		InfinitePhysics_ActivateAbove(x, y, z);
 		return;
 	}
