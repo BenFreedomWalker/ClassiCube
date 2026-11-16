@@ -1167,25 +1167,24 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
 		if (!chunk) { res = ERR_OUT_OF_MEMORY; goto failed; }
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
-if (version2) {
-		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
-#ifdef EXTENDED_BLOCKS
-		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
-			if (upper[i]) {
-				if (!chunk->blocks2) {
+		if (version2) {
+			if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
+			for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+				cc_uint16 block = (cc_uint16)chunk->blocks[i] | ((cc_uint16)upper[i] << 8);
+				if (block > BLOCK_MAX_DEFINED) { res = ERR_INVALID_ARGUMENT; goto failed; }
+#ifndef EXTENDED_BLOCKS
+				if (upper[i]) { res = ERR_NOT_SUPPORTED; goto failed; }
+#else
+				if (upper[i] && !chunk->blocks2) {
 					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
 					if (!chunk->blocks2) { res = ERR_OUT_OF_MEMORY; goto failed; }
 				}
-				break;
-			}
-		}
-		if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
-#else
-		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
-			if (upper[i]) { res = ERR_NOT_SUPPORTED; goto failed; }
-		}
 #endif
-	} else {
+			}
+#ifdef EXTENDED_BLOCKS
+			if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
+#endif
+		} else {
 #ifdef EXTENDED_BLOCKS
 		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
