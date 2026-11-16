@@ -485,6 +485,12 @@ static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid, 
 #define INFINITE_RANDOM_TICK_BUDGET 64
 #define INFINITE_RANDOM_TICK_CHUNK_RADIUS 2
 
+/* Plant removal is an internal block update, so explicitly wake liquids that it exposes. */
+static void InfinitePhysics_RemovePlant(int x, int y, int z) {
+	Game_UpdateBlock(x, y, z, BLOCK_AIR);
+	InfinitePhysics_ActivateLiquidsAround(x, y, z);
+}
+
 static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 	BlockID below;
 	int i, count, height;
@@ -509,20 +515,20 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 	}
 	if (block == BLOCK_DANDELION || block == BLOCK_ROSE) {
 		if (!Lighting.IsLit(x, y, z)) {
-			Game_UpdateBlock(x, y, z, BLOCK_AIR);
+			InfinitePhysics_RemovePlant(x, y, z);
 		} else {
 			below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_DIRT;
-			if (below != BLOCK_DIRT && below != BLOCK_GRASS) Game_UpdateBlock(x, y, z, BLOCK_AIR);
+			if (below != BLOCK_DIRT && below != BLOCK_GRASS) InfinitePhysics_RemovePlant(x, y, z);
 		}
 		return;
 	}
 	if (block == BLOCK_RED_SHROOM || block == BLOCK_BROWN_SHROOM) {
 		if (Lighting.IsLit(x, y, z)) {
-			Game_UpdateBlock(x, y, z, BLOCK_AIR);
+			InfinitePhysics_RemovePlant(x, y, z);
 			return;
 		}
 		below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_STONE;
-		if (below != BLOCK_STONE && below != BLOCK_COBBLE) Game_UpdateBlock(x, y, z, BLOCK_AIR);
+		if (below != BLOCK_STONE && below != BLOCK_COBBLE) InfinitePhysics_RemovePlant(x, y, z);
 		return;
 	}
 	if (block != BLOCK_SAPLING) return;
@@ -530,7 +536,7 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 	below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_AIR;
 	/* Saplings stay alive on dirt. */
 	if (below == BLOCK_DIRT) return;
-	Game_UpdateBlock(x, y, z, BLOCK_AIR);
+	InfinitePhysics_RemovePlant(x, y, z);
 	if (below != BLOCK_GRASS || !Lighting.IsLit(x, y, z)) return;
 
 	height = 5 + Random_Next(&physics_rnd, 3);
