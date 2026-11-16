@@ -417,13 +417,14 @@ static void InfiniteWorld_GenerateCaves(int seed, int chunkX, int chunkZ, BlockR
 }
 
 cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* blocks) {
-	int x, y, z, worldX, worldZ, surface, index;
+	int x, y, z, worldX, worldZ, surface, index, columnIndex;
 	cc_uint8 surfaceHeights[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
 	cc_uint8 deserts[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
 	cc_uint8 forests[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
 	cc_uint8 snowies[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
+	cc_uint8 beaches[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
+	cc_uint32 surfaceHashes[INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE];
 	cc_bool desert, beach, snowy;
-	cc_uint32 surfaceHash;
 	cc_int64 baseX = (cc_int64)chunkX * INFINITE_WORLD_CHUNK_SIZE;
 	cc_int64 baseZ = (cc_int64)chunkZ * INFINITE_WORLD_CHUNK_SIZE;
 
@@ -431,22 +432,36 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 	if (baseX < Int32_MinValue || baseX + (INFINITE_WORLD_CHUNK_SIZE - 1) > Int32_MaxValue) return false;
 	if (baseZ < Int32_MinValue || baseZ + (INFINITE_WORLD_CHUNK_SIZE - 1) > Int32_MaxValue) return false;
 
+	/* Calculate column metadata first, then fill each horizontal block plane
+	   contiguously. The block array is y-major, so this avoids strided writes
+	   through 64 separate planes for every individual column. */
 	for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
 		worldZ = (int)(baseZ + z);
 		for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
 			worldX = (int)(baseX + x);
+			columnIndex = z * INFINITE_WORLD_CHUNK_SIZE + x;
 			surface = InfiniteWorld_SurfaceHeight(seed, worldX, worldZ);
-			surfaceHeights[z * INFINITE_WORLD_CHUNK_SIZE + x] = (cc_uint8)surface;
+			surfaceHeights[columnIndex] = (cc_uint8)surface;
 			desert = InfiniteWorld_IsDesert(seed, worldX, worldZ);
 			beach = !desert && InfiniteWorld_IsBeach(surface);
-			surfaceHash = InfiniteWorld_Hash(seed ^ 0xBB67AE85u, worldX, worldZ);
+			surfaceHashes[columnIndex] = InfiniteWorld_Hash(seed ^ 0xBB67AE85u, worldX, worldZ);
 			snowy = !desert && !beach && InfiniteWorld_IsSnowy(seed, worldX, worldZ, surface);
-			deserts[z * INFINITE_WORLD_CHUNK_SIZE + x] = desert;
-			forests[z * INFINITE_WORLD_CHUNK_SIZE + x] = InfiniteWorld_IsForest(seed, worldX, worldZ);
-			snowies[z * INFINITE_WORLD_CHUNK_SIZE + x] = snowy;
+			beaches[columnIndex] = beach;
+			deserts[columnIndex] = desert;
+			forests[columnIndex] = InfiniteWorld_IsForest(seed, worldX, worldZ);
+			snowies[columnIndex] = snowy;
+		}
+	}
 
-			for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
-				index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE) + (z * INFINITE_WORLD_CHUNK_SIZE) + x;
+	for (y = 0; y < INFINITE_WORLD_HEIGHT; y++) {
+		for (z = 0; z < INFINITE_WORLD_CHUNK_SIZE; z++) {
+			for (x = 0; x < INFINITE_WORLD_CHUNK_SIZE; x++) {
+				columnIndex = z * INFINITE_WORLD_CHUNK_SIZE + x;
+				surface = surfaceHeights[columnIndex];
+				index = y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE + columnIndex;
+				desert = deserts[columnIndex] != 0;
+				beach = beaches[columnIndex] != 0;
+				snowy = snowies[columnIndex] != 0;
 				if (y == 0) {
 					blocks[index] = BLOCK_BEDROCK;
 				} else if (y < surface - 3) {
@@ -455,7 +470,7 @@ cc_bool InfiniteWorld_GenerateChunk(int seed, int chunkX, int chunkZ, BlockRaw* 
 					blocks[index] = (desert || beach) ? BLOCK_SANDSTONE : BLOCK_DIRT;
 				} else if (y == surface) {
 					blocks[index] = desert ? BLOCK_SAND :
-						(beach && (surfaceHash & 7u) == 0u) ? BLOCK_GRAVEL :
+						(beach && (surfaceHashes[columnIndex] & 7u) == 0u) ? BLOCK_GRAVEL :
 						beach ? BLOCK_SAND : BLOCK_GRASS;
 				} else if (y == surface + 1 && snowy) {
 					blocks[index] = BLOCK_SNOW;
