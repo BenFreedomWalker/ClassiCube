@@ -401,7 +401,7 @@ static void BuildChunk(struct ChunkInfo* chunk, int* chunkUpdates) {
 
 	chunk->retryFrame = frameCounter;
 	chunk->dirty  = false;
-	chunk->noData/ = !chunk->normalParts && !chunk->translucentParts;
+	chunk->noData = !chunk->normalParts && !chunk->translucentParts;
 	chunk->empty  = chunk->noData;
 	if (chunk->empty) return;
 	
@@ -705,9 +705,9 @@ static int UpdateChunksStill(int* chunkUpdates) {
 
 static void UpdateChunks(float delta) {
 	struct LocalPlayer* p;
+
+	cc_bool samePos;	int chunkUpdates = 0;
 	frameCounter++;
-	cc_bool samePos;
-	int chunkUpdates = 0;
 
 	/* Build more chunks if 30 FPS or over, otherwise slowdown */
 	chunksTarget += delta < CHUNK_TARGET_TIME ? 1 : -1; 
