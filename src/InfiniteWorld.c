@@ -490,11 +490,19 @@ static void InfiniteWorld_LruLinkHead(struct InfiniteWorld_Chunk* chunk) {
 	if (InfiniteWorld_LruHead >= 0) InfiniteWorld_Chunks[InfiniteWorld_LruHead].lruPrev = index;
 	else InfiniteWorld_LruTail = index;
 	InfiniteWorld_LruHead = index;
+	chunk->lastUsed = InfiniteWorld_AccessCounter;
 }
 
 static void InfiniteWorld_LruTouch(struct InfiniteWorld_Chunk* chunk) {
 	int index = (int)(chunk - InfiniteWorld_Chunks);
 	if (!chunk->blocks || (chunk->modified && chunk->compressionBlocked) || InfiniteWorld_LruHead == index) return;
+	/* Sparse chunks are temporarily outside the LRU; reinsert them immediately. */
+	if (chunk->lruPrev < 0 && chunk->lruNext < 0) {
+		InfiniteWorld_LruLinkHead(chunk);
+		return;
+	}
+	/* Block meshing reads a chunk thousands of times; avoid relinking on every read. */
+	if (InfiniteWorld_AccessCounter - chunk->lastUsed < 128) return;
 	InfiniteWorld_LruUnlink(chunk);
 	InfiniteWorld_LruLinkHead(chunk);
 }
@@ -848,7 +856,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
 	if (chunk) {
 		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) return NULL;
-		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+		++InfiniteWorld_AccessCounter;
 		InfiniteWorld_LruTouch(chunk);
 		InfiniteWorld_EvictChunks(chunk);
 		return chunk;
@@ -871,7 +879,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	chunk->z = chunkZ;
 	chunk->modified = false;
 	chunk->compressionBlocked = false;
-	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+	++InfiniteWorld_AccessCounter;
 	chunk->blocks = blocks;
 #ifdef EXTENDED_BLOCKS
 	chunk->blocks2 = blocks2;
@@ -909,11 +917,10 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 		}
 		if (low >= chunk->editCount || chunk->edits[low].index != index) return false;
 		*block = (BlockID)chunk->edits[low].block;
-		chunk->lastUsed = ++InfiniteWorld_AccessCounter;
 		return true;
 	}
 	/* Sparse chunks expose explicit edits here; unchanged base terrain stays ungenerated. */
-	chunk->lastUsed = ++InfiniteWorld_AccessCounter;
+	++InfiniteWorld_AccessCounter;
 	InfiniteWorld_LruTouch(chunk);
 #ifdef EXTENDED_BLOCKS
 	if (chunk->blocks2) *block = (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
