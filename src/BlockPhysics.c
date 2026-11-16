@@ -195,6 +195,8 @@ static void InfinitePhysics_Fall(int x, int y, int z) {
 		Game_UpdateBlock(x, currentY, z, BLOCK_AIR);
 		Game_UpdateBlock(x, destY, z, block);
 		InfinitePhysics_ActivateLiquidsAround(x, currentY, z);
+		/* The landing block may have displaced liquid at its destination. */
+		InfinitePhysics_ActivateLiquidsAround(x, destY, z);
 
 		/* The move may expose another falling block directly above it. */
 		currentY++;
@@ -457,10 +459,10 @@ static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid, 
 	int maxFlow = (liquid == BLOCK_LAVA || liquid == BLOCK_STILL_LAVA) ? 3 : 7;
 	InfinitePhysics_SpreadTo(x, y - 1, z, liquid, flow);
 	if (flow >= maxFlow) return;
-	InfinitePhysics_SpreadTo(x - 1, y, z, liquid, flow + 1);
-	InfinitePhysics_SpreadTo(x + 1, y, z, liquid, flow + 1);
-	InfinitePhysics_SpreadTo(x, y, z - 1, liquid, flow + 1);
-	InfinitePhysics_SpreadTo(x, y, z + 1, liquid, flow + 1);
+	if (x > Int32_MinValue) InfinitePhysics_SpreadTo(x - 1, y, z, liquid, flow + 1);
+	if (x < Int32_MaxValue) InfinitePhysics_SpreadTo(x + 1, y, z, liquid, flow + 1);
+	if (z > Int32_MinValue) InfinitePhysics_SpreadTo(x, y, z - 1, liquid, flow + 1);
+	if (z < Int32_MaxValue) InfinitePhysics_SpreadTo(x, y, z + 1, liquid, flow + 1);
 }
 /* Coordinate-based random ticks for the active area of an infinite world.
    Sampling is bounded per frame and centred on the local player. */
