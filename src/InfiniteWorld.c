@@ -985,23 +985,23 @@ static cc_uint32 InfiniteWorld_ReadU32(const cc_uint8* src) {
 }
 static cc_result InfiniteWorld_WriteChunkData(struct Stream* stream, struct InfiniteWorld_Chunk* chunk) {
 	BlockRaw* tempBlocks = NULL, *tempBlocks2 = NULL;
+	BlockRaw zeroUpper[INFINITE_WORLD_CHUNK_VOLUME] = { 0 };
 	BlockRaw* blocks = chunk->blocks;
+	BlockRaw* blocks2 = zeroUpper;
 	cc_result res;
 #ifdef EXTENDED_BLOCKS
-	BlockRaw zeroUpper[INFINITE_WORLD_CHUNK_VOLUME] = { 0 };
-	BlockRaw* blocks2 = chunk->blocks2;
+	blocks2 = chunk->blocks2 ? chunk->blocks2 : zeroUpper;
 #endif
 	if (!blocks) {
 		if (!InfiniteWorld_CreateChunkData(chunk->x, chunk->z, chunk->edits, chunk->editCount, &tempBlocks, &tempBlocks2)) return ERR_OUT_OF_MEMORY;
 		blocks = tempBlocks;
 #ifdef EXTENDED_BLOCKS
-		blocks2 = tempBlocks2;
+		blocks2 = tempBlocks2 ? tempBlocks2 : zeroUpper;
 #endif
 	}
+	/* ICW2 always stores a 16-bit block ID, independent of build options. */
 	res = Stream_Write(stream, blocks, INFINITE_WORLD_CHUNK_VOLUME);
-#ifdef EXTENDED_BLOCKS
-	if (!res) res = Stream_Write(stream, blocks2 ? blocks2 : zeroUpper, INFINITE_WORLD_CHUNK_VOLUME);
-#endif
+	if (!res) res = Stream_Write(stream, blocks2, INFINITE_WORLD_CHUNK_VOLUME);
 	Mem_Free(tempBlocks);
 	Mem_Free(tempBlocks2);
 	return res;
@@ -1016,7 +1016,7 @@ cc_result InfiniteWorld_Save(struct Stream* stream) {
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) if (InfiniteWorld_Chunks[i].modified) count++;
 	/* Keep saves within the same record limit accepted by the loader. */
 	if (count > INFINITE_WORLD_MAX_SAVED_CHUNKS) return ERR_INVALID_ARGUMENT;
-	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '1';
+	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '2';
 	InfiniteWorld_WriteU32(&header[4], (cc_uint32)InfiniteWorld_Seed);
 	InfiniteWorld_WriteU32(&header[8], INFINITE_WORLD_HEIGHT);
 	InfiniteWorld_WriteU32(&header[12], count);
@@ -1114,26 +1114,30 @@ static cc_result InfiniteWorld_PreflightRecords(struct Stream* stream, cc_uint32
 cc_result InfiniteWorld_Load(struct Stream* stream) {
 	struct InfiniteWorld_State staged = { 0 };
 	struct InfiniteWorld_State* previous;
-	cc_uint8 header[16], coords[8];
-#ifdef EXTENDED_BLOCKS
-	cc_uint8 upper[INFINITE_WORLD_CHUNK_VOLUME];
+	cc_uint8 header[16], coords[8], upper[INFINITE_WORLD_CHUNK_VOLUME];
 	int i;
-#endif
+	cc_bool version2;
 	cc_uint32 count, n, position, length;
 	cc_uint64 recordSize, required;
 	int seed, chunkX, chunkZ;
 	struct InfiniteWorld_Chunk* chunk;
 	cc_result res;
 	if ((res = Stream_Read(stream, header, sizeof(header)))) return res;
-	if (header[0] != 'I' || header[1] != 'C' || header[2] != 'W' || header[3] != '1') return ERR_INVALID_ARGUMENT;
+	version2 = header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '2';
+	if (!version2 && !(header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '1')) return ERR_INVALID_ARGUMENT;
 	seed = (int)(cc_int32)InfiniteWorld_ReadU32(&header[4]);
 	if (InfiniteWorld_ReadU32(&header[8]) != INFINITE_WORLD_HEIGHT) return ERR_INVALID_ARGUMENT;
 	count = InfiniteWorld_ReadU32(&header[12]);
 	if (count > INFINITE_WORLD_MAX_SAVED_CHUNKS) return ERR_INVALID_ARGUMENT;
 	recordSize = 8 + INFINITE_WORLD_CHUNK_VOLUME;
+	/* ICW2 has a fixed 16-bit payload; ICW1 follows its historical build layout. */
+	if (version2) {
+		recordSize += INFINITE_WORLD_CHUNK_VOLUME;
+	} else {
 #ifdef EXTENDED_BLOCKS
-	recordSize += INFINITE_WORLD_CHUNK_VOLUME;
+		recordSize += INFINITE_WORLD_CHUNK_VOLUME;
 #endif
+	}
 	/* Reject truncated files before replacing the currently loaded world. */
 	if (!stream->Position(stream, &position) && !stream->Length(stream, &length)) {
 		required = (cc_uint64)count * recordSize;
@@ -1163,6 +1167,25 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
 		if (!chunk) { res = ERR_OUT_OF_MEMORY; goto failed; }
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
+if (version2) {
+		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
+#ifdef EXTENDED_BLOCKS
+		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+			if (upper[i]) {
+				if (!chunk->blocks2) {
+					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+					if (!chunk->blocks2) { res = ERR_OUT_OF_MEMORY; goto failed; }
+				}
+				break;
+			}
+		}
+		if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
+#else
+		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
+			if (upper[i]) { res = ERR_NOT_SUPPORTED; goto failed; }
+		}
+#endif
+	} else {
 #ifdef EXTENDED_BLOCKS
 		if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 		for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
@@ -1176,6 +1199,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		}
 		if (chunk->blocks2) Mem_Copy(chunk->blocks2, upper, INFINITE_WORLD_CHUNK_VOLUME);
 #endif
+	}
 		chunk->modified = true;
 	}
 
