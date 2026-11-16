@@ -414,8 +414,10 @@ static void InfinitePhysics_PlaceSponge(int x, int y, int z) {
 			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
 		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
 		block = World_GetBlock((int)xx, (int)yy, (int)zz);
-		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
+		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER) {
 			Game_UpdateBlock((int)xx, (int)yy, (int)zz, BLOCK_AIR);
+			InfinitePhysics_ActivateLiquidsAround((int)xx, (int)yy, (int)zz);
+		}
 	}
 }
 
