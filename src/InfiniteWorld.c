@@ -120,6 +120,9 @@ static void InfiniteWorld_GenerateTrees(int seed, int chunkX, int chunkZ, BlockR
 				anchorZ < Int32_MinValue || anchorZ > Int32_MaxValue) continue;
 			x = (int)anchorX; z = (int)anchorZ;
 			hash = InfiniteWorld_Hash(seed ^ 0x2C9277B5u, x, z);
+			/* Even forest trees cap out at 10/256. Reject the other 246
+			   positions before doing surface and biome lookups. */
+			if ((hash & 255u) >= 10u) continue;
 			if (anchorX >= baseX && anchorX < xEnd && anchorZ >= baseZ && anchorZ < zEnd) {
 				index = (int)(anchorZ - baseZ) * INFINITE_WORLD_CHUNK_SIZE + (int)(anchorX - baseX);
 				surface = surfaceHeights[index];
