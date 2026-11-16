@@ -276,6 +276,29 @@ static void InfinitePhysics_SwapEntries(int a, int b) {
 	InfinitePhysics_UpdateHashIndex(&infinitePhysicsQueue[a], a);
 	InfinitePhysics_UpdateHashIndex(&infinitePhysicsQueue[b], b);
 }
+static void InfinitePhysics_HeapUpdate(int index) {
+	int parent, left, right, smallest;
+	if (index > 0) {
+		parent = (index - 1) / 2;
+		if (InfinitePhysics_IsEarlier(infinitePhysicsQueue[index].dueTick, infinitePhysicsQueue[parent].dueTick)) {
+			while (index > 0) {
+				parent = (index - 1) / 2;
+				if (!InfinitePhysics_IsEarlier(infinitePhysicsQueue[index].dueTick, infinitePhysicsQueue[parent].dueTick)) break;
+				InfinitePhysics_SwapEntries(index, parent);
+				index = parent;
+			}
+			return;
+		}
+	}
+	for (;;) {
+		left = index * 2 + 1; right = left + 1; smallest = index;
+		if (left < infinitePhysicsCount && InfinitePhysics_IsEarlier(infinitePhysicsQueue[left].dueTick, infinitePhysicsQueue[smallest].dueTick)) smallest = left;
+		if (right < infinitePhysicsCount && InfinitePhysics_IsEarlier(infinitePhysicsQueue[right].dueTick, infinitePhysicsQueue[smallest].dueTick)) smallest = right;
+		if (smallest == index) break;
+		InfinitePhysics_SwapEntries(index, smallest);
+		index = smallest;
+	}
+}
 static void InfinitePhysics_HeapPush(struct InfinitePhysicsEntry entry) {
 	int index = infinitePhysicsCount++;
 	infinitePhysicsQueue[index] = entry;
@@ -316,8 +339,14 @@ static void InfinitePhysics_Queue(int x, int y, int z, BlockID block, int flow) 
 	}
 	slot = InfinitePhysics_FindHashSlot(x, y, z, false);
 	if (slot >= 0 && infinitePhysicsHash[slot].state == 1) {
-		struct InfinitePhysicsEntry* queued = &infinitePhysicsQueue[infinitePhysicsHash[slot].queueIndex];
+		int index = infinitePhysicsHash[slot].queueIndex;
+		struct InfinitePhysicsEntry* queued = &infinitePhysicsQueue[index];
+		cc_uint32 dueTick = infinitePhysicsTick + ((block == BLOCK_LAVA || block == BLOCK_STILL_LAVA) ? 30u : 5u);
 		if (flow < queued->flow) queued->flow = (cc_uint8)flow;
+		if (queued->dueTick != dueTick) {
+			queued->dueTick = dueTick;
+			InfinitePhysics_HeapUpdate(index);
+		}
 		return;
 	}
 	if (infinitePhysicsCount == infinitePhysicsQueueSize && !InfinitePhysics_EnsureCapacity()) {
