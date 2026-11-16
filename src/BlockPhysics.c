@@ -175,6 +175,7 @@ static cc_bool InfinitePhysics_IsReplaceable(BlockID block) {
 
 static cc_bool InfinitePhysics_IsLiquid(BlockID block);
 static void InfinitePhysics_ActivateLiquidsAround(int x, int y, int z);
+static void InfinitePhysics_ActivateAbove(int x, int y, int z);
 
 static void InfinitePhysics_Fall(int x, int y, int z) {
 	int currentY = y;
@@ -460,12 +461,18 @@ static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int fl
 	if (!World_Contains(x, y, z)) return;
 	other = World_GetBlock(x, y, z);
 	if (liquid == BLOCK_WATER || liquid == BLOCK_STILL_WATER) {
-		if (other == BLOCK_LAVA || other == BLOCK_STILL_LAVA) Game_UpdateBlock(x, y, z, BLOCK_STONE);
+		if (other == BLOCK_LAVA || other == BLOCK_STILL_LAVA) {
+			Game_UpdateBlock(x, y, z, BLOCK_STONE);
+			InfinitePhysics_ActivateAbove(x, y, z);
+		}
 		else if (Blocks.Draw[other] == DRAW_GAS && !InfinitePhysics_NearSponge(x, y, z)) {
 			Game_UpdateBlock(x, y, z, BLOCK_WATER); InfinitePhysics_Queue(x, y, z, BLOCK_WATER, flow);
 		}
 	} else {
-		if (other == BLOCK_WATER || other == BLOCK_STILL_WATER) Game_UpdateBlock(x, y, z, BLOCK_STONE);
+		if (other == BLOCK_WATER || other == BLOCK_STILL_WATER) {
+			Game_UpdateBlock(x, y, z, BLOCK_STONE);
+			InfinitePhysics_ActivateAbove(x, y, z);
+		}
 		else if (Blocks.Draw[other] == DRAW_GAS) {
 			Game_UpdateBlock(x, y, z, BLOCK_LAVA); InfinitePhysics_Queue(x, y, z, BLOCK_LAVA, flow);
 		}
