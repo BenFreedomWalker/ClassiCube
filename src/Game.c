@@ -222,7 +222,12 @@ void Game_Reset(void) {
 }
 
 void Game_UpdateBlock(int x, int y, int z, BlockID block) {
-	BlockID old = World_GetBlock(x, y, z);
+	BlockID old;
+	if (World.Infinite) {
+		if (!InfiniteWorld_TryGetBlockGenerate(x, y, z, &old)) return;
+	} else {
+		old = World_GetBlock(x, y, z);
+	}
 	World_SetBlock(x, y, z, block);
 
 	if (Weather_Heightmap) {
@@ -233,7 +238,12 @@ void Game_UpdateBlock(int x, int y, int z, BlockID block) {
 }
 
 void Game_ChangeBlock(int x, int y, int z, BlockID block) {
-	BlockID old = World_GetBlock(x, y, z);
+	BlockID old;
+	if (World.Infinite) {
+		if (!InfiniteWorld_TryGetBlockGenerate(x, y, z, &old)) return;
+	} else {
+		old = World_GetBlock(x, y, z);
+	}
 	Game_UpdateBlock(x, y, z, block);
 	Server.SendBlock(x, y, z, old, block);
 }

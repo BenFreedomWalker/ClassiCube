@@ -346,7 +346,7 @@ float Respawn_HighestSolidY(struct AABB* bb) {
 				/* just below and just on borders of the map is treated as such */
 				/* Not sure if this is really necessary though, it seems to work */
 				/* just fine already when you're standing on the bottom of the map. */
-				block = World_SafeGetBlock(x, y, z);
+				if (!World_TryGetPhysicsBlock(x, y, z, &block)) return RESPAWN_NOT_FOUND;
 				Vec3_Add(&blockBB.Min, &v, &Blocks.MinBB[block]);
 				Vec3_Add(&blockBB.Max, &v, &Blocks.MaxBB[block]);
 

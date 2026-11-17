@@ -526,7 +526,7 @@ static cc_bool Collisions_CanSlideThrough(struct AABB* adjFinalBB) {
 		for (z = bbMin.z; z <= bbMax.z; z++) { v.z = (float)z;
 			for (x = bbMin.x; x <= bbMax.x; x++) { v.x = (float)x;
 
-				block = World_GetPhysicsBlock(x, y, z);
+				if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
 				Vec3_Add(&blockBB.Min, &v, &Blocks.MinBB[block]);
 				Vec3_Add(&blockBB.Max, &v, &Blocks.MaxBB[block]);
 
@@ -817,7 +817,7 @@ static cc_bool PhysicsComp_OnIce(struct Entity* e) {
 	feetY = Math_Floor(e->Position.y - 0.01f);
 	feetZ = Math_Floor(e->Position.z);
 
-	feetBlock = World_GetPhysicsBlock(feetX, feetY, feetZ);
+	if (!World_TryGetPhysicsBlock(feetX, feetY, feetZ, &feetBlock)) return false;
 	if (Blocks.ExtendedCollide[feetBlock] == COLLIDE_ICE) return true;
 
 	Entity_GetBounds(e, &bounds);
@@ -896,8 +896,7 @@ static float PhysicsComp_LowestModifier(struct PhysicsComp* comp, struct AABB* b
 	for (y = bbMin.y; y <= bbMax.y; y++) { v.y = (float)y;
 		for (z = bbMin.z; z <= bbMax.z; z++) { v.z = (float)z;
 			for (x = bbMin.x; x <= bbMax.x; x++) { v.x = (float)x;
-				block = World_GetBlock(x, y, z);
-
+				if (!World_TryGetPhysicsBlock(x, y, z, &block)) return MATH_LARGENUM;
 				if (block == BLOCK_AIR) continue;
 				collide = Blocks.Collide[block];
 				if (collide == COLLIDE_SOLID && !checkSolid) continue;
