@@ -408,14 +408,25 @@ static void InfinitePhysics_ActivateLiquidsAround(int x, int y, int z) {
 /* Sponge interactions use world coordinates rather than finite-map indices. */
 static void InfinitePhysics_PlaceSponge(int x, int y, int z) {
 	cc_int64 xx, yy, zz;
+	BlockID block;
+
+	/* Preflight the full absorption volume before changing any water. */
 	for (yy = (cc_int64)y - 2; yy <= (cc_int64)y + 2; yy++)
 	 for (zz = (cc_int64)z - 2; zz <= (cc_int64)z + 2; zz++)
 	  for (xx = (cc_int64)x - 2; xx <= (cc_int64)x + 2; xx++) {
-		BlockID block;
 		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
 			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
 		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
-		block = World_GetBlock((int)xx, (int)yy, (int)zz);
+		if (!World_TryGetPhysicsBlock((int)xx, (int)yy, (int)zz, &block)) return;
+	}
+
+	for (yy = (cc_int64)y - 2; yy <= (cc_int64)y + 2; yy++)
+	 for (zz = (cc_int64)z - 2; zz <= (cc_int64)z + 2; zz++)
+	  for (xx = (cc_int64)x - 2; xx <= (cc_int64)x + 2; xx++) {
+		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
+			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
+		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
+		if (!World_TryGetPhysicsBlock((int)xx, (int)yy, (int)zz, &block)) return;
 		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER) {
 			Game_UpdateBlock((int)xx, (int)yy, (int)zz, BLOCK_AIR);
 			InfinitePhysics_ActivateLiquidsAround((int)xx, (int)yy, (int)zz);
@@ -425,10 +436,12 @@ static void InfinitePhysics_PlaceSponge(int x, int y, int z) {
 
 static void InfinitePhysics_DeleteSponge(int x, int y, int z) {
 	cc_int64 xx, yy, zz;
+	BlockID block;
+
+	/* Preflight the complete shell before scheduling any liquid updates. */
 	for (yy = (cc_int64)y - 3; yy <= (cc_int64)y + 3; yy++)
 	 for (zz = (cc_int64)z - 3; zz <= (cc_int64)z + 3; zz++)
 	  for (xx = (cc_int64)x - 3; xx <= (cc_int64)x + 3; xx++) {
-		BlockID block;
 		cc_int64 dx = xx - x, dy = yy - y, dz = zz - z;
 		if (dx < 0) dx = -dx;
 		if (dy < 0) dy = -dy;
@@ -437,7 +450,21 @@ static void InfinitePhysics_DeleteSponge(int x, int y, int z) {
 		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
 			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
 		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
-		block = World_GetBlock((int)xx, (int)yy, (int)zz);
+		if (!World_TryGetPhysicsBlock((int)xx, (int)yy, (int)zz, &block)) return;
+	}
+
+	for (yy = (cc_int64)y - 3; yy <= (cc_int64)y + 3; yy++)
+	 for (zz = (cc_int64)z - 3; zz <= (cc_int64)z + 3; zz++)
+	  for (xx = (cc_int64)x - 3; xx <= (cc_int64)x + 3; xx++) {
+		cc_int64 dx = xx - x, dy = yy - y, dz = zz - z;
+		if (dx < 0) dx = -dx;
+		if (dy < 0) dy = -dy;
+		if (dz < 0) dz = -dz;
+		if (dx != 3 && dy != 3 && dz != 3) continue;
+		if (xx < Int32_MinValue || xx > Int32_MaxValue ||
+			zz < Int32_MinValue || zz > Int32_MaxValue) continue;
+		if (!World_Contains((int)xx, (int)yy, (int)zz)) continue;
+		if (!World_TryGetPhysicsBlock((int)xx, (int)yy, (int)zz, &block)) return;
 		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER)
 			InfinitePhysics_Queue((int)xx, (int)yy, (int)zz, block, 0);
 	}
