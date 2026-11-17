@@ -137,7 +137,7 @@ static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin, cc_bool* re
 		if (sides && y == -1 && origin.y > 0) return BORDER;
 		if (sides && y ==  0 && origin.y < 0) return BORDER;
 
-		if (sides && y >= 0 && y < Env_SidesHeight && origin.y < Env_SidesHeight) {
+		if (!World.Infinite && sides && y >= 0 && y < Env_SidesHeight && origin.y < Env_SidesHeight) {
 			if (x == 0          && origin.x < 0)  return BORDER;
 			if (z == 0          && origin.z < 0)  return BORDER;
 			if (x == World.MaxX && origin.x >= 0) return BORDER;
