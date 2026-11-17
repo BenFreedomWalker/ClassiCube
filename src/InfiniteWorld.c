@@ -569,7 +569,7 @@ static struct InfiniteWorld_State* InfiniteWorld_Current = &InfiniteWorld_MainSt
 /* Each 16x64x16 data chunk serves four 16-high renderer slices.
    A 23x23 cache covers the 21x21 render window plus mesh border reads. */
 #define INFINITE_WORLD_MAX_RESIDENT_CHUNKS 768
-#define INFINITE_WORLD_MAX_SAVED_CHUNKS 1000000u
+#define INFINITE_WORLD_MAX_SAVED_CHUNKS 65520u
 
 /* Dense chunks use an intrusive LRU list so eviction does not scan the full
    history of chunk coordinates on every cache miss. */
