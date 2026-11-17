@@ -39,7 +39,7 @@ struct SearcherState { BlockID block; short relX, relY, relZ; float tSquared; };
 extern struct SearcherState* Searcher_States;
 extern IVec3 Searcher_Origin;
 
-int Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, struct AABB* entityExtentBB);
+cc_bool Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, struct AABB* entityExtentBB, int* count);
 void Searcher_CalcTime(Vec3* vel, struct AABB *entityBB, struct AABB* blockBB, float* tx, float* ty, float* tz);
 void Searcher_Free(void);
 

@@ -150,7 +150,7 @@ static void Searcher_QuickSort(int left, int right) {
 	}
 }
 
-int Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, struct AABB* entityExtentBB) {
+cc_bool Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, struct AABB* entityExtentBB, int* resultCount) {
 	Vec3 vel = entity->Velocity;
 	IVec3 min, max;
 	cc_uint32 elements;
@@ -162,6 +162,8 @@ int Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, s
 	float xx, yy, zz, tx, ty, tz;
 	int x, y, z;
 
+	if (!resultCount) return false;
+	*resultCount = 0;
 	Entity_GetBounds(entity, entityBB);
 	/* Exact maximum extent the entity can reach, and the equivalent map coordinates. */
 	entityExtentBB->Min.x = entityBB->Min.x + (vel.x < 0.0f ? vel.x : 0.0f);
@@ -188,7 +190,7 @@ int Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, s
 	for (y = min.y; y <= max.y; y++) {
 		for (z = min.z; z <= max.z; z++) {
 			for (x = min.x; x <= max.x; x++) {
-				block = World_GetPhysicsBlock(x, y, z);
+				if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
 				if (Blocks.Collide[block] != COLLIDE_SOLID) continue;
 
 				xx = (float)x; yy = (float)y; zz = (float)z;
@@ -213,7 +215,8 @@ int Searcher_FindReachableBlocks(struct Entity* entity, struct AABB* entityBB, s
 
 	count = (int)(curState - Searcher_States);
 	if (count) Searcher_QuickSort(0, count - 1);
-	return count;
+	*resultCount = count;
+	return true;
 }
 
 void Searcher_CalcTime(Vec3* vel, struct AABB *entityBB, struct AABB* blockBB, float* tx, float* ty, float* tz) {
