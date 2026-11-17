@@ -1145,8 +1145,9 @@ Vec3 LocalPlayer_CalcDefaultSpawn(struct LocalPlayer* p) {
 	float z = World.Infinite ? 0.5f : (World.Length / 2) + 0.5f;
 	Vec3 spawn = Respawn_FindSpawnPosition(x, z, p->Base.Size);
 	if (World.Infinite) {
-		BlockID block = World_GetBlock((int)x, INFINITE_WORLD_WATER_LEVEL, (int)z);
-		if (block == BLOCK_WATER || block == BLOCK_STILL_WATER) {
+		BlockID block;
+		if (World_TryGetPhysicsBlock((int)x, INFINITE_WORLD_WATER_LEVEL, (int)z, &block)
+				&& (block == BLOCK_WATER || block == BLOCK_STILL_WATER)) {
 			spawn.y = INFINITE_WORLD_WATER_LEVEL + 1.0f;
 		}
 	}
