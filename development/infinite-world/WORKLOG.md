@@ -2,7 +2,7 @@
 
 This is an internal engineering notebook for the ClassiCube infinite-world implementation. It records durable findings so future work can resume without repeating whole-subsystem audits.
 
-Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibility must remain unchanged. Do not edit README as part of this work unless explicitly requested.
+Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibility must remain unchanged.
 
 ## Current state
 
