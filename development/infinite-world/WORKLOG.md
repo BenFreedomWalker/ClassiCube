@@ -34,6 +34,9 @@ Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibilit
 - [x] Addressed confirmed source-level defects recorded in recent commits
 - [ ] Further fixes, only if the remaining work uncovers a confirmed defect
 
+### Build verification
+- [ ] Existing Linux GL1/GL2 workflow succeeds for the current infinite-world source.
+
 ### Runtime verification
 - [ ] Launch a new infinite world and reach the spawn area
 - [ ] Walk across chunk boundaries in every horizontal direction without gaps, stalls, or crashes
@@ -42,7 +45,7 @@ Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibilit
 - [ ] Verify finite-world generation and existing .cw load/save compatibility
 - [ ] Check stability and memory use during extended exploration
 
-Source-audit checkboxes mean the code paths were inspected; they do not mean runtime behaviour has been verified.
+Source-audit checkboxes mean the code paths were inspected; they do not mean compilation or runtime behaviour has been verified. The repository has no dedicated automated infinite-world test suite. The existing Linux workflow can provide a compile check, but a playable streaming and persistence check still requires launching the application.
 
 ## Immediate next work
 
@@ -52,7 +55,7 @@ Source-audit checkboxes mean the code paths were inspected; they do not mean run
 
 ## Recent implementation commits
 
-- `c86b2839ad05ebc0a3aab67a78246960ab0652a4` — Split oversized chunk draws into index-safe batches. Changes GL1, GL2, D3D9, and D3D11 draw paths so a draw is divided into batches no larger than the shared 16-bit index buffer's 65,536-vertex addressable range. **Review this change as part of the current graphics audit; do not assume the diff alone proves all backends correct.**
+- `c86b2839ad05ebc0a3aab67a78246960ab0652a4` — Split oversized chunk draws into index-safe batches. Changes GL1, GL2, D3D9, and D3D11 draw paths so a draw is divided into batches no larger than the shared 16-bit index buffer's 65,536-vertex addressable range. Backend source review is complete; no batching defect was found.
 - `6158620257c3d3493325977499cad793604132e0` — Handle GL11 chunk display-list allocation failures.
 - `f245db445647fbf88357e0dd88e5a85b884fcae6` — Clear stale chunk part metadata on empty batches.
 - `7ff66de5d2ea08b5f281db449d1ab0b4adee4c99` — Report unsupported extended IDs in standard builds.
