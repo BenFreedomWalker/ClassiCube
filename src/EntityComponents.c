@@ -704,7 +704,11 @@ void Collisions_MoveAndWallSlide(struct CollisionsComp* comp) {
 	int count;
 
 	if (Vec3_IsZero(e->Velocity)) return;
-	count = Searcher_FindReachableBlocks(e,            &entityBB, &entityExtentBB);
+	if (!Searcher_FindReachableBlocks(e, &entityBB, &entityExtentBB, &count)) {
+		/* Do not integrate movement when a required chunk is unavailable. */
+		Vec3_Set(e->Velocity, 0, 0, 0);
+		return;
+	}
 	Collisions_CollideWithReachableBlocks(comp, count, &entityBB, &entityExtentBB);
 }
 
