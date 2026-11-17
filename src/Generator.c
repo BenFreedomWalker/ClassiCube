@@ -782,6 +782,7 @@ cc_bool TreeGen_CanGrow(int treeX, int treeY, int treeZ, int treeHeight) {
 	int baseHeight = treeHeight - 4;
 	int index;
 	int x, y, z;
+	BlockID block;
 
 	/* check tree base */
 	for (y = treeY; y < treeY + baseHeight; y++) {
@@ -789,8 +790,7 @@ cc_bool TreeGen_CanGrow(int treeX, int treeY, int treeZ, int treeHeight) {
 			for (x = treeX - 1; x <= treeX + 1; x++) {
 
 				if (!World_Contains(x, y, z)) return false;
-				if (World.Infinite) {
-					BlockID block;
+			if (World.Infinite) {
 					if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
 					if (block != BLOCK_AIR) return false;
 				} else {
@@ -808,7 +808,8 @@ cc_bool TreeGen_CanGrow(int treeX, int treeY, int treeZ, int treeHeight) {
 
 				if (!World_Contains(x, y, z)) return false;
 				if (World.Infinite) {
-					if (World_GetBlock(x, y, z) != BLOCK_AIR) return false;
+					if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
+					if (block != BLOCK_AIR) return false;
 				} else {
 					index = World_Pack(x, y, z);
 					if (Tree_Blocks[index] != BLOCK_AIR) return false;
