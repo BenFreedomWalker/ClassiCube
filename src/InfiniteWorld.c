@@ -1180,15 +1180,21 @@ static cc_result InfiniteWorld_WriteChunkData(struct Stream* stream, struct Infi
 	return res;
 }
 
+cc_result InfiniteWorld_CheckSave(void) {
+	cc_uint32 count = 0;
+	int i;
+	if (!InfiniteWorld_Active) return ERR_NOT_SUPPORTED;
+	for (i = 0; i < InfiniteWorld_ChunksCount; i++) if (InfiniteWorld_Chunks[i].modified) count++;
+	return count > INFINITE_WORLD_MAX_SAVED_CHUNKS ? ERR_INVALID_ARGUMENT : 0;
+}
+
 cc_result InfiniteWorld_Save(struct Stream* stream) {
 	cc_uint8 header[16], coords[8];
 	cc_uint32 count = 0;
 	int i;
 	cc_result res;
-	if (!InfiniteWorld_Active) return ERR_NOT_SUPPORTED;
+	if ((res = InfiniteWorld_CheckSave())) return res;
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) if (InfiniteWorld_Chunks[i].modified) count++;
-	/* Keep saves within the same record limit accepted by the loader. */
-	if (count > INFINITE_WORLD_MAX_SAVED_CHUNKS) return ERR_INVALID_ARGUMENT;
 	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '2';
 	InfiniteWorld_WriteU32(&header[4], (cc_uint32)InfiniteWorld_Seed);
 	InfiniteWorld_WriteU32(&header[8], INFINITE_WORLD_HEIGHT);

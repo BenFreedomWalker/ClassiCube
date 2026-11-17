@@ -44,6 +44,8 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block);
 cc_bool InfiniteWorld_SetBlock(int x, int y, int z, BlockID block);
 /* Number of chunk coordinates tracked by the world. */
 int InfiniteWorld_ChunkCount(void);
+/* Checks whether the current edited-chunk set fits the portable save limit. */
+cc_result InfiniteWorld_CheckSave(void);
 cc_result InfiniteWorld_Save(struct Stream* stream);
 cc_result InfiniteWorld_Load(struct Stream* stream);
 

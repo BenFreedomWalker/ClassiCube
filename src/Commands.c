@@ -827,6 +827,11 @@ static void SaveCommand_Execute(const cc_string* args, int argsCount) {
 	}
 
 	Platform_EncodePath(&rawPath, args);
+	res = InfiniteWorld_CheckSave();
+	if (res) {
+		Chat_AddRaw("&eSave: too many modified chunks for the supported file size.");
+		return;
+	}
 	if (File_Exists(&rawPath)) {
 		Chat_AddRaw("&eSave: file already exists; choose another filename.");
 		return;
