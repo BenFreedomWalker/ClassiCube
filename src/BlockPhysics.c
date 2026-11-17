@@ -552,8 +552,7 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 		if (!Lighting.IsLit(x, y, z)) {
 			InfinitePhysics_RemovePlant(x, y, z);
 		} else {
-			if (y > 0 && !World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
-			if (y == 0) below = BLOCK_DIRT;
+			if (!World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
 			if (below != BLOCK_DIRT && below != BLOCK_GRASS) InfinitePhysics_RemovePlant(x, y, z);
 		}
 		return;
@@ -563,8 +562,7 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 			InfinitePhysics_RemovePlant(x, y, z);
 			return;
 		}
-		if (y > 0 && !World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
-		if (y == 0) below = BLOCK_STONE;
+		if (!World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
 		if (below != BLOCK_STONE && below != BLOCK_COBBLE) InfinitePhysics_RemovePlant(x, y, z);
 		return;
 	}
