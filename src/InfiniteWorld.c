@@ -1026,24 +1026,30 @@ cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
 	return true;
 }
 
-BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
+cc_bool InfiniteWorld_TryGetBlockGenerate(int x, int y, int z, BlockID* block) {
 	int cx, cz, index;
 	struct InfiniteWorld_Chunk* chunk;
-	if (y < 0) return BLOCK_BEDROCK;
-	if (y >= INFINITE_WORLD_HEIGHT) return BLOCK_AIR;
-	if (!InfiniteWorld_Active) return BLOCK_AIR;
-
+	if (!block || y < 0 || y >= INFINITE_WORLD_HEIGHT || !InfiniteWorld_Active) return false;
 	cx = InfiniteWorld_ChunkCoord(x);
 	cz = InfiniteWorld_ChunkCoord(z);
 	chunk = InfiniteWorld_GetChunk(cx, cz);
-	if (!chunk) return BLOCK_AIR;
+	if (!chunk) return false;
 	index = (y * INFINITE_WORLD_CHUNK_SIZE * INFINITE_WORLD_CHUNK_SIZE)
 		+ (InfiniteWorld_LocalCoord(z) * INFINITE_WORLD_CHUNK_SIZE)
 		+ InfiniteWorld_LocalCoord(x);
 #ifdef EXTENDED_BLOCKS
-	if (chunk->blocks2) return (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
+	if (chunk->blocks2) *block = (BlockID)(chunk->blocks[index] | (chunk->blocks2[index] << 8));
+	else
 #endif
-	return (BlockID)chunk->blocks[index];
+	*block = (BlockID)chunk->blocks[index];
+	return true;
+}
+
+BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
+	BlockID block;
+	if (y < 0) return BLOCK_BEDROCK;
+	if (y >= INFINITE_WORLD_HEIGHT) return BLOCK_AIR;
+	return InfiniteWorld_TryGetBlockGenerate(x, y, z, &block) ? block : BLOCK_AIR;
 }
 
 /* Copies the builder's 18x18x18 mesh volume by resolving each intersecting

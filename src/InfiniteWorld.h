@@ -33,6 +33,8 @@ void InfiniteWorld_Reset(void);
 /* Reads a block from the generated chunk store. Y below zero is bedrock;
    Y at or above the world height is air. */
 BlockID InfiniteWorld_GetBlock(int x, int y, int z);
+/* Generates/materializes the target chunk and reports allocation failure separately from air. */
+cc_bool InfiniteWorld_TryGetBlockGenerate(int x, int y, int z, BlockID* block);
 /* Copies an 18x18x18 mesh volume, resolving each intersecting data chunk once. */
 cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks);
 /* Reads dense resident data or explicit sparse edits; never generates base terrain. */
