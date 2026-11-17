@@ -110,7 +110,7 @@ void Plugins_LoadAll(void);
 CC_API void Game_UpdateBlock(int x, int y, int z, BlockID block);
 /* Calls Game_UpdateBlock, then informs server connection of the block change. */
 /* In multiplayer this is sent to the server, in singleplayer just activates physics. */
-CC_API void Game_ChangeBlock(int x, int y, int z, BlockID block);
+CC_API cc_bool Game_ChangeBlock(int x, int y, int z, BlockID block);
 
 cc_bool Game_CanPick(BlockID block);
 /* Updates Game_Width and Game_Height. */

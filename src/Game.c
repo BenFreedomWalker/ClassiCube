@@ -237,15 +237,16 @@ void Game_UpdateBlock(int x, int y, int z, BlockID block) {
 	MapRenderer_OnBlockChanged(x, y, z, block);
 }
 
-void Game_ChangeBlock(int x, int y, int z, BlockID block) {
+cc_bool Game_ChangeBlock(int x, int y, int z, BlockID block) {
 	BlockID old;
 	if (World.Infinite) {
-		if (!InfiniteWorld_TryGetBlockGenerate(x, y, z, &old)) return;
+		if (!InfiniteWorld_TryGetBlockGenerate(x, y, z, &old)) return false;
 	} else {
 		old = World_GetBlock(x, y, z);
 	}
 	Game_UpdateBlock(x, y, z, block);
 	Server.SendBlock(x, y, z, old, block);
+	return true;
 }
 
 cc_bool Game_CanPick(BlockID block) {

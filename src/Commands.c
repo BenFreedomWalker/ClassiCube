@@ -354,7 +354,10 @@ static void PlaceCommand_Execute(const cc_string* args, int argsCount) {
 		return;
 	}
 	
-	Game_ChangeBlock(pos.x, pos.y, pos.z, block);
+	if (!Game_ChangeBlock(pos.x, pos.y, pos.z, block)) {
+		Chat_AddRaw("&cCould not place block: chunk data is unavailable.");
+		return;
+	}
 	name = Block_UNSAFE_GetName(block);
 	Chat_Add4("&eSuccessfully placed %s block at (%i, %i, %i).", &name, &pos.x, &pos.y, &pos.z);
 }
