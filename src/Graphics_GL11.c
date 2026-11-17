@@ -112,6 +112,7 @@ static cc_bool UnlockVb(GfxResourceID vb) {
 
 GfxResourceID Gfx_CreateVb2(void* vertices, VertexFormat fmt, int count) {
 	GLuint list = glGenLists(1);
+	if (!list) return 0;
 	UpdateDisplayList(list, vertices, fmt, count);
 	return uint_to_ptr(list);
 }

@@ -103,7 +103,12 @@ static void AddVertices(BlockID block, Face face) {
 }
 
 #if CC_GFX_BACKEND == CC_GFX_BACKEND_GL11
-static void BuildPartVbs(struct ChunkPartInfo* info) {
+static void DeletePartVbs(struct ChunkPartInfo* info) {
+	int i;
+	for (i = 0; i < CHUNKPART_MAX_VBS; i++) Gfx_DeleteVb(&info->vbs[i]);
+}
+
+static cc_bool BuildPartVbs(struct ChunkPartInfo* info) {
 	/* Sprites vertices are stored before chunk face sides */
 	int i, count, offset = info->offset + info->spriteCount;
 	for (i = 0; i < FACE_COUNT; i++) {
@@ -111,6 +116,10 @@ static void BuildPartVbs(struct ChunkPartInfo* info) {
 
 		if (count) {
 			info->vbs[i] = Gfx_CreateVb2(&Builder_Vertices[offset], VERTEX_FORMAT_TEXTURED, count);
+			if (!info->vbs[i]) {
+				DeletePartVbs(info);
+				return false;
+			}
 			offset += count;
 		} else {
 			info->vbs[i] = 0;
@@ -121,9 +130,14 @@ static void BuildPartVbs(struct ChunkPartInfo* info) {
 	offset = info->offset;
 	if (count) {
 		info->vbs[i] = Gfx_CreateVb2(&Builder_Vertices[offset], VERTEX_FORMAT_TEXTURED, count);
+		if (!info->vbs[i]) {
+			DeletePartVbs(info);
+			return false;
+		}
 	} else {
 		info->vbs[i] = 0;
 	}
+	return true;
 }
 #endif
 
@@ -488,11 +502,25 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 #if CC_GFX_BACKEND == CC_GFX_BACKEND_GL11
 	cIndex = info->slotIndex;
 
+	cc_bool built = true;
 	for (index = 0; index < MapRenderer_1DUsedCount; index++) {
 		int curIdx = cIndex + index * MapRenderer_ChunksCount;
 
-		BuildPartVbs(&MapRenderer_PartsNormal[curIdx]);
-		BuildPartVbs(&MapRenderer_PartsTranslucent[curIdx]);
+		if (!BuildPartVbs(&MapRenderer_PartsNormal[curIdx]) ||
+			!BuildPartVbs(&MapRenderer_PartsTranslucent[curIdx])) {
+			built = false;
+			break;
+		}
+	}
+	if (!built) {
+		/* A failed display-list allocation must not strand earlier lists.
+		   MapRenderer will retry this chunk after its normal backoff. */
+		for (index = 0; index < MapRenderer_1DUsedCount; index++) {
+			int curIdx = cIndex + index * MapRenderer_ChunksCount;
+			DeletePartVbs(&MapRenderer_PartsNormal[curIdx]);
+			DeletePartVbs(&MapRenderer_PartsTranslucent[curIdx]);
+		}
+		return false;
 	}
 #else
 	Gfx_UnlockVb(info->vb);
