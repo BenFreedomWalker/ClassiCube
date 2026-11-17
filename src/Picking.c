@@ -167,7 +167,7 @@ static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin, cc_bool* re
 	return BLOCK_AIR;
 }
 
-static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir, float reach, IntersectTest intersect) {
+static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir, float reach, IntersectTest intersect, cc_bool* unavailable) {
 	IVec3 pOrigin;
 	cc_bool insideMap, readFailed;
 	float reachSq;
@@ -178,6 +178,7 @@ static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir
 	float dzMin, dzMax, dz;
 	int i, x, y, z;
 
+	if (unavailable) *unavailable = false;
 	RayTracer_Init(t, origin, dir);
 	/* Check if origin is at NaN (happens if player's position is at infinity) */
 	if (origin->x != origin->x || origin->y != origin->y || origin->z != origin->z) return false;
@@ -197,7 +198,10 @@ static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir
 		t->block = insideMap ? Picking_GetInside(x, y, z, &readFailed)
 							: Picking_GetOutside(x, y, z, pOrigin, &readFailed);
 		/* Never let an unavailable infinite chunk masquerade as selectable air. */
-		if (readFailed) return false;
+		if (readFailed) {
+			if (unavailable) *unavailable = true;
+			return false;
+		}
 		Vec3_Add(&t->Min, &v, &Blocks.RenderMinBB[t->block]);
 		Vec3_Add(&t->Max, &v, &Blocks.RenderMaxBB[t->block]);
 
@@ -260,17 +264,23 @@ static cc_bool ClipCamera(struct RayTracer* t) {
 }
 
 void Picking_CalcPickedBlock(const Vec3* origin, const Vec3* dir, float reach, struct RayTracer* t) {
-	if (!RayTrace(t, origin, dir, reach, ClipBlock)) {
+	if (!RayTrace(t, origin, dir, reach, ClipBlock, NULL)) {
 		RayTracer_SetInvalid(t);
 	}
 }
 
 void Picking_ClipCameraPos(const Vec3* origin, const Vec3* dir, float reach, struct RayTracer* t) {
+	cc_bool unavailable = false;
 	cc_bool noClip = (!Camera.Clipping || Entities.CurPlayer->Hacks.Noclip)
 						&& Entities.CurPlayer->Hacks.CanNoclip;
-	if (noClip || !World.Loaded || !RayTrace(t, origin, dir, reach, ClipCamera)) {
+	if (noClip || !World.Loaded || !RayTrace(t, origin, dir, reach, ClipCamera, &unavailable)) {
 		RayTracer_SetInvalid(t);
-		Vec3_Mul1(&t->intersect, dir, reach);           /* intersect = dir * reach */
-		Vec3_Add(&t->intersect, origin, &t->intersect); /* intersect = origin + dir * reach */
+		if (unavailable) {
+			/* Stay at the known position rather than clipping through unknown terrain. */
+			t->intersect = *origin;
+		} else {
+			Vec3_Mul1(&t->intersect, dir, reach);           /* intersect = dir * reach */
+			Vec3_Add(&t->intersect, origin, &t->intersect); /* intersect = origin + dir * reach */
+		}
 	}
 }
