@@ -130,7 +130,12 @@ static void BuildPartVbs(struct ChunkPartInfo* info) {
 static cc_bool SetPartInfo(struct Builder1DPart* part, int* offset, struct ChunkPartInfo* info) {
 	int vCount = Builder1DPart_VerticesCount(part);
 	info->offset = -1;
-	if (!vCount) return false;
+	if (!vCount) {
+		/* Clear metadata left by the previous chunk using this render slot. */
+		info->spriteCount = 0;
+		Mem_Set(info->counts, 0, sizeof(info->counts));
+		return false;
+	}
 
 	info->offset = *offset;
 	*offset += vCount;
