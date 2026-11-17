@@ -1365,10 +1365,11 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 			if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 			for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
 				cc_uint16 block = (cc_uint16)chunk->blocks[i] | ((cc_uint16)upper[i] << 8);
-				if (block > BLOCK_MAX_DEFINED) { res = ERR_INVALID_ARGUMENT; goto failed; }
 #ifndef EXTENDED_BLOCKS
 				if (upper[i]) { res = ERR_NOT_SUPPORTED; goto failed; }
-#else
+#endif
+				if (block > BLOCK_MAX_DEFINED) { res = ERR_INVALID_ARGUMENT; goto failed; }
+#ifdef EXTENDED_BLOCKS
 				if (upper[i] && !chunk->blocks2) {
 					chunk->blocks2 = (BlockRaw*)Mem_TryAllocCleared(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
 					if (!chunk->blocks2) { res = ERR_OUT_OF_MEMORY; goto failed; }
