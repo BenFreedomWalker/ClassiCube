@@ -12,14 +12,43 @@ Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibilit
 - **The end-to-end playable milestone is not yet verified.** The required milestone is: create an infinite world, spawn, walk continuously in any direction, and see terrain stream without gaps or crashes.
 - Do not describe the project as finished until the playable milestone and persistence/finite-world regression checks are completed.
 
+## Active engineering checklist
+
+### Source audit
+- [x] Chunk storage, eviction, compaction, and persistence
+- [x] Deterministic terrain generation and cross-chunk seams
+- [x] Cross-chunk block-edit and mesh invalidation
+- [x] Lighting compatibility and Classic-only constraint
+- [x] Physics, collision, and block interaction
+- [x] Save/load lifecycle and ICW format validation
+- [x] Coordinate bounds and large-distance precision
+- [x] World lifecycle, launcher, and initial spawn
+- [x] Streaming ring, mesh retry, and renderer metadata
+- [x] Mesh geometry limits and GPU draw-buffer correctness
+- [x] 16-bit index batching across GL1, GL2, D3D9, and D3D11
+
+### Implementation
+- [x] Infinite-world mode and world-type integration
+- [x] Deterministic chunk terrain and streaming foundation
+- [x] Persistent block edits and ICW save/load
+- [x] Addressed confirmed source-level defects recorded in recent commits
+- [ ] Further fixes, only if the remaining work uncovers a confirmed defect
+
+### Runtime verification
+- [ ] Launch a new infinite world and reach the spawn area
+- [ ] Walk across chunk boundaries in every horizontal direction without gaps, stalls, or crashes
+- [ ] Verify terrain continues streaming during sustained movement
+- [ ] Save, quit, reload, and verify seed plus edited blocks
+- [ ] Verify finite-world generation and existing .cw load/save compatibility
+- [ ] Check stability and memory use during extended exploration
+
+Source-audit checkboxes mean the code paths were inspected; they do not mean runtime behaviour has been verified.
+
 ## Immediate next work
 
-1. Continue the mesh-geometry and GPU-buffer audit from the latest master.
-2. Trace builder vertex counts and allocation limits through every graphics backend.
-3. Review the latest index-safe draw batching change (commit listed below), especially batch boundaries, GL state restoration, D3D draw arguments, and large vertex-buffer offsets.
-4. Reach and verify the first playable streaming milestone.
-5. Verify save → quit → reload preserves edits and world identity.
-6. Regression-check finite worlds and .cw loading/saving.
+1. Reach and verify the first playable infinite-world streaming milestone.
+2. Verify save → quit → reload preserves edits and world identity.
+3. Regression-check finite worlds and .cw loading/saving.
 
 ## Recent implementation commits
 
@@ -67,6 +96,11 @@ These are prior source-audit findings, not substitutes for runtime verification.
 - Chunk builds are prioritised by camera distance and constrained by an adaptive per-frame budget.
 - Actual dynamic memory pressure is dominated by generated vertex data/GPU buffers, not the fixed per-slot metadata.
 - GL1 display-list/buffer allocation failure handling and stale empty-part metadata were addressed in recent commits.
+- The shared index buffer uses 16-bit indices and the default quad pattern: six indices per four vertices. `ICOUNT(verticesCount)` therefore assumes vertex counts are multiples of four.
+- Builder face geometry is appended in four-vertex quads; sprite geometry is appended in sixteen-vertex groups. The 65,536-vertex batch limit is divisible by four, so splitting at that boundary preserves complete quads.
+- A conservative per-chunk geometry bound is 98,304 vertices (4,096 blocks × six faces × four vertices); sprite blocks use fewer vertices than the six-face bound. This keeps the per-chunk vertex count and byte-size calculations comfortably within signed-int and backend buffer-size ranges.
+- Backend review of commit `c86b2839ad05ebc0a3aab67a78246960ab0652a4`: D3D11 advances `BaseVertexLocation`; D3D9 advances `BaseVertexIndex` and uses the matching primitive count; GL1 rebases vertex-array pointers per batch; GL2 rebases attribute pointers when the shared index range is crossed and restores the ordinary textured layout afterward.
+- No batching correctness defect was found in the reviewed call paths. This is a source audit only; GPU/runtime behaviour remains part of the playable milestone.
 
 ### Lighting
 - Infinite worlds currently force Classic lighting.
@@ -96,7 +130,7 @@ These are prior source-audit findings, not substitutes for runtime verification.
 ## Known limitations and open risks (not all are confirmed bugs)
 
 1. End-to-end runtime playability and seamless streaming still need verification.
-2. Latest oversized-draw batching commit needs a backend-by-backend correctness review.
+2. Runtime verification of large chunk meshes remains part of the playable milestone.
 3. Fancy lighting is not supported in infinite worlds; Classic is forced.
 4. Fixed render window is 21×21 horizontal chunks; increasing finite view-distance settings does not expand it.
 5. Dense heavily edited chunks can exceed the soft resident-memory target.
@@ -112,6 +146,5 @@ These are prior source-audit findings, not substitutes for runtime verification.
 - Before each commit, fetch the latest master ref and its commit/tree fresh; build on that exact tree and use an expected SHA when updating master.
 - Re-fetch source after detecting a newer HEAD. Never reuse stale file blobs or tree SHAs.
 - Keep changes focused; preserve existing line endings; abort if exact source anchors do not match.
-- Do not edit README unless explicitly requested.
 - Record confirmed defects separately from speculative risks. For every fix, record the commit SHA and the affected subsystem.
 - Do not claim runtime/build/test verification unless it actually happened.
