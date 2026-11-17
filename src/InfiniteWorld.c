@@ -34,7 +34,12 @@ static int InfiniteWorld_Smooth(int t) {
 }
 
 static int InfiniteWorld_Lerp(int a, int b, int t) {
-	return a + (((b - a) * t) >> 16);
+	int delta = (b - a) * t;
+	/* Match arithmetic right-shift rounding without relying on
+	   implementation-defined right shifts of negative signed values. */
+	if (delta < 0) delta = -((-delta + 65535) / 65536);
+	else delta /= 65536;
+	return a + delta;
 }
 
 static int InfiniteWorld_Noise(int seed, int x, int z, int scale) {
