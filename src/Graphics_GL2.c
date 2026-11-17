@@ -715,13 +715,22 @@ void Gfx_BindVb_Textured(GfxResourceID vb) {
 }
 
 void Gfx_DrawIndexedTris_T2fC4b(int verticesCount, int startVertex, DrawHints hints) {
-	if (startVertex + verticesCount > GFX_MAX_VERTICES) {
-		GL_SetupVbTextured_Range(startVertex);
-		glDrawElements(GL_TRIANGLES, ICOUNT(verticesCount), GL_UNSIGNED_SHORT, NULL);
-		GL_SetupVbTextured();
-	} else {
-		/* ICOUNT(startVertex) * 2 = startVertex * 3  */
-		glDrawElements(GL_TRIANGLES, ICOUNT(verticesCount), GL_UNSIGNED_SHORT, uint_to_ptr(startVertex * 3));
+	int drawn = 0, count, base;
+	cc_bool restoreFormat = startVertex + verticesCount > GFX_MAX_VERTICES;
+
+	/* Keep every draw within the 16-bit shared index buffer's addressable range. */
+	while (drawn < verticesCount) {
+		count = min(verticesCount - drawn, GFX_MAX_VERTICES);
+		base  = startVertex + drawn;
+		if (base + count > GFX_MAX_VERTICES) {
+			GL_SetupVbTextured_Range(base);
+			glDrawElements(GL_TRIANGLES, ICOUNT(count), GL_UNSIGNED_SHORT, NULL);
+		} else {
+			/* ICOUNT(base) * 2 = base * 3 */
+			glDrawElements(GL_TRIANGLES, ICOUNT(count), GL_UNSIGNED_SHORT, uint_to_ptr(base * 3));
+		}
+		drawn += count;
 	}
+	if (restoreFormat) GL_SetupVbTextured();
 }
 #endif

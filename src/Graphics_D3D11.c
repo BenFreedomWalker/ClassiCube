@@ -493,7 +493,14 @@ void Gfx_DrawVb_IndexedTris_Range(int verticesCount, int startVertex, DrawHints 
 }
 
 void Gfx_DrawIndexedTris_T2fC4b(int verticesCount, int startVertex, DrawHints hints) {
-	ID3D11DeviceContext_DrawIndexed(context, ICOUNT(verticesCount), 0, startVertex);
+	int drawn = 0, count;
+
+	/* D3D uses the same 16-bit shared index buffer as the GL backends. */
+	while (drawn < verticesCount) {
+		count = min(verticesCount - drawn, GFX_MAX_VERTICES);
+		ID3D11DeviceContext_DrawIndexed(context, ICOUNT(count), 0, startVertex + drawn);
+		drawn += count;
+	}
 }
 
 

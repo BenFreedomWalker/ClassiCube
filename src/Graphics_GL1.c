@@ -286,11 +286,19 @@ void Gfx_DrawVb_IndexedTris(int verticesCount) {
 }
 
 void Gfx_DrawIndexedTris_T2fC4b(int verticesCount, int startVertex, DrawHints hints) {
-	cc_uint32 offset = startVertex * SIZEOF_VERTEX_TEXTURED;
-	_glVertexPointer(3, GL_FLOAT,        SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset +  0));
-	_glColorPointer(4, GL_UNSIGNED_BYTE, SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset + 12));
-	_glTexCoordPointer(2, GL_FLOAT,      SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset + 16));
-	_glDrawElements(GL_TRIANGLES,        ICOUNT(verticesCount),  GL_UNSIGNED_SHORT, IB_PTR);
+	int drawn = 0, count;
+	cc_uint32 offset;
+
+	/* The shared index buffer addresses at most 65536 vertices at a time. */
+	while (drawn < verticesCount) {
+		count  = min(verticesCount - drawn, GFX_MAX_VERTICES);
+		offset = (startVertex + drawn) * SIZEOF_VERTEX_TEXTURED;
+		_glVertexPointer(3, GL_FLOAT,        SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset +  0));
+		_glColorPointer(4, GL_UNSIGNED_BYTE, SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset + 12));
+		_glTexCoordPointer(2, GL_FLOAT,      SIZEOF_VERTEX_TEXTURED, (GLpointer)(VB_PTR + offset + 16));
+		_glDrawElements(GL_TRIANGLES, ICOUNT(count), GL_UNSIGNED_SHORT, IB_PTR);
+		drawn += count;
+	}
 }
 
 
