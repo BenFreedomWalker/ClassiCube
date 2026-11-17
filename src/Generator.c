@@ -790,7 +790,9 @@ cc_bool TreeGen_CanGrow(int treeX, int treeY, int treeZ, int treeHeight) {
 
 				if (!World_Contains(x, y, z)) return false;
 				if (World.Infinite) {
-					if (World_GetBlock(x, y, z) != BLOCK_AIR) return false;
+					BlockID block;
+					if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
+					if (block != BLOCK_AIR) return false;
 				} else {
 					index = World_Pack(x, y, z);
 					if (Tree_Blocks[index] != BLOCK_AIR) return false;
