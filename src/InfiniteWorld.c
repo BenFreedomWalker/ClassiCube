@@ -1085,7 +1085,11 @@ cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks) {
 					destIndex = zz * EXTCHUNK_SIZE + xx;
 					for (yy = -1; yy < 17; yy++) {
 						y = y1 + yy;
-						if ((unsigned)y >= (unsigned)INFINITE_WORLD_HEIGHT) {
+						if (y < 0) {
+							blocks[(yy + 1) * EXTCHUNK_SIZE_2 + destIndex] = BLOCK_BEDROCK;
+							continue;
+						}
+						if (y >= INFINITE_WORLD_HEIGHT) {
 							blocks[(yy + 1) * EXTCHUNK_SIZE_2 + destIndex] = BLOCK_AIR;
 							continue;
 						}
