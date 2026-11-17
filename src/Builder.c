@@ -546,7 +546,7 @@ static void Builder_DrawSprite(int x, int y, int z) {
 
 	offsetType = Blocks.SpriteOffset[Builder_Block];
 	if (offsetType >= 6 && offsetType <= 7) {
-		Random_Seed(&spriteRng, (x + 1217 * z) & 0x7fffffff);
+		Random_Seed(&spriteRng, (int)(((cc_uint32)x + 1217u * (cc_uint32)z) & 0x7FFFFFFFu));
 		valX = Random_Range(&spriteRng, -3, 3 + 1) / 16.0f;
 		valY = Random_Range(&spriteRng, 0,  3 + 1) / 16.0f;
 		valZ = Random_Range(&spriteRng, -3, 3 + 1) / 16.0f;
