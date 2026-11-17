@@ -197,6 +197,15 @@ BlockID World_GetPhysicsBlock(int x, int y, int z) {
 	return World_GetBlock(x, y, z);
 }
 
+cc_bool World_TryGetPhysicsBlock(int x, int y, int z, BlockID* block) {
+	if (!block) return false;
+	if (y < 0 || !World_ContainsXZ(x, z)) { *block = BLOCK_BEDROCK; return true; }
+	if (y >= World.Height) { *block = BLOCK_AIR; return true; }
+	if (World.Infinite) return InfiniteWorld_TryGetBlockGenerate(x, y, z, block);
+	*block = World_GetBlock(x, y, z);
+	return true;
+}
+
 BlockID World_SafeGetBlock(int x, int y, int z) {
 	return World_Contains(x, y, z) ? World_GetBlock(x, y, z) : BLOCK_AIR;
 }

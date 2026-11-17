@@ -99,6 +99,8 @@ BlockID World_GetBlock(int x, int y, int z);
 /* If coordinates are outside the map, returns BLOCK_AIR. */
 /* Otherwise returns the block at the given coordinates. */
 BlockID World_GetPhysicsBlock(int x, int y, int z);
+/* Like World_GetPhysicsBlock, but reports unavailable infinite chunks as failure. */
+cc_bool World_TryGetPhysicsBlock(int x, int y, int z, BlockID* block);
 /* Sets the block at the given coordinates. */
 /* NOTE: Does NOT check that the coordinates are inside the map. */
 void World_SetBlock(int x, int y, int z, BlockID block);
