@@ -376,6 +376,9 @@ Vec3 Respawn_FindSpawnPosition(float x, float z, Vec3 modelSize) {
 		}
 		bb.Min.y -= 1.0f; bb.Max.y -= 1.0f;
 	}
+	/* Infinite terrain always has a solid bedrock floor. If no surface was
+	   found, chunk data was unavailable; do not spawn inside the world at Y=0. */
+	if (World.Infinite && y < 0) spawn.y = World.Height + 1.0f;
 	return spawn;
 }
 
