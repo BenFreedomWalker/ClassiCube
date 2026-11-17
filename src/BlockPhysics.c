@@ -186,13 +186,16 @@ static void InfinitePhysics_Fall(int x, int y, int z) {
 
 	/* Process stacked falling blocks iteratively to avoid recursive calls. */
 	while (currentY < World.Height) {
-		BlockID block = World_GetBlock(x, currentY, z);
+		BlockID block, below;
 		int destY = currentY;
 
+		if (!World_TryGetPhysicsBlock(x, currentY, z, &block)) return;
 		if (!InfinitePhysics_IsFalling(block)) return;
 
-		/* Search down through air and liquids, stopping at the first solid block. */
-		while (destY > 0 && InfinitePhysics_IsReplaceable(World_GetBlock(x, destY - 1, z))) {
+		/* Complete every required read before moving either block. */
+		while (destY > 0) {
+			if (!World_TryGetPhysicsBlock(x, destY - 1, z, &below)) return;
+			if (!InfinitePhysics_IsReplaceable(below)) break;
 			destY--;
 		}
 		if (destY == currentY) return;
@@ -383,28 +386,22 @@ static cc_bool InfinitePhysics_IsLiquid(BlockID block) {
 static void InfinitePhysics_ActivateLiquidsAround(int x, int y, int z) {
 	BlockID adjacent;
 	if (x > Int32_MinValue) {
-		adjacent = World_GetBlock(x - 1, y, z);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x - 1, y, z, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x - 1, y, z, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x - 1, y, z, adjacent, 0);
 	}
 	if (x < Int32_MaxValue) {
-		adjacent = World_GetBlock(x + 1, y, z);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x + 1, y, z, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x + 1, y, z, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x + 1, y, z, adjacent, 0);
 	}
 	if (z > Int32_MinValue) {
-		adjacent = World_GetBlock(x, y, z - 1);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z - 1, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x, y, z - 1, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z - 1, adjacent, 0);
 	}
 	if (z < Int32_MaxValue) {
-		adjacent = World_GetBlock(x, y, z + 1);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z + 1, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x, y, z + 1, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y, z + 1, adjacent, 0);
 	}
 	if (y + 1 < World.Height) {
-		adjacent = World_GetBlock(x, y + 1, z);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y + 1, z, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x, y + 1, z, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y + 1, z, adjacent, 0);
 	}
 	if (y > 0) {
-		adjacent = World_GetBlock(x, y - 1, z);
-		if (InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y - 1, z, adjacent, 0);
+		if (World_TryGetPhysicsBlock(x, y - 1, z, &adjacent) && InfinitePhysics_IsLiquid(adjacent)) InfinitePhysics_Queue(x, y - 1, z, adjacent, 0);
 	}
 }
 
@@ -463,7 +460,7 @@ static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
 static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int flow) {
 	BlockID other;
 	if (!World_Contains(x, y, z)) return;
-	other = World_GetBlock(x, y, z);
+	if (!World_TryGetPhysicsBlock(x, y, z, &other)) return;
 	if (liquid == BLOCK_WATER || liquid == BLOCK_STILL_WATER) {
 		if (other == BLOCK_LAVA || other == BLOCK_STILL_LAVA) {
 			Game_UpdateBlock(x, y, z, BLOCK_STONE);
@@ -528,7 +525,8 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 		if (!Lighting.IsLit(x, y, z)) {
 			InfinitePhysics_RemovePlant(x, y, z);
 		} else {
-			below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_DIRT;
+			if (y > 0 && !World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
+			if (y == 0) below = BLOCK_DIRT;
 			if (below != BLOCK_DIRT && below != BLOCK_GRASS) InfinitePhysics_RemovePlant(x, y, z);
 		}
 		return;
@@ -538,13 +536,15 @@ static void InfinitePhysics_RandomTick(int x, int y, int z, BlockID block) {
 			InfinitePhysics_RemovePlant(x, y, z);
 			return;
 		}
-		below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_STONE;
+		if (y > 0 && !World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
+		if (y == 0) below = BLOCK_STONE;
 		if (below != BLOCK_STONE && below != BLOCK_COBBLE) InfinitePhysics_RemovePlant(x, y, z);
 		return;
 	}
 	if (block != BLOCK_SAPLING) return;
 
-	below = y > 0 ? World_GetBlock(x, y - 1, z) : BLOCK_AIR;
+	if (y > 0 && !World_TryGetPhysicsBlock(x, y - 1, z, &below)) return;
+	if (y == 0) below = BLOCK_AIR;
 	/* Saplings stay alive on dirt. */
 	if (below == BLOCK_DIRT) return;
 	InfinitePhysics_RemovePlant(x, y, z);
@@ -578,7 +578,10 @@ static void InfinitePhysics_TickRandomBlocks(void) {
 		x = (int)blockX;
 		z = (int)blockZ;
 		y = Random_Next(&physics_rnd, World.Height);
-		InfinitePhysics_RandomTick(x, y, z, World_GetBlock(x, y, z));
+		{
+			BlockID block;
+			if (World_TryGetPhysicsBlock(x, y, z, &block)) InfinitePhysics_RandomTick(x, y, z, block);
+		}
 	}
 }
 
@@ -593,7 +596,12 @@ static void InfinitePhysics_Tick(void) {
 		if (InfinitePhysics_IsEarlier(infinitePhysicsTick, infinitePhysicsQueue[0].dueTick)) break;
 		entry = InfinitePhysics_HeapPop();
 		processed++;
-		block = World_GetBlock(entry.x, entry.y, entry.z);
+		if (!World_TryGetPhysicsBlock(entry.x, entry.y, entry.z, &block)) {
+			/* Allocation failure is not air: retain this liquid update for retry. */
+			InfinitePhysics_Queue(entry.x, entry.y, entry.z,
+				entry.liquidType ? BLOCK_LAVA : BLOCK_WATER, entry.flow);
+			continue;
+		}
 		if (InfinitePhysics_IsLiquid(block))
 			InfinitePhysics_ActivateLiquid(entry.x, entry.y, entry.z, block, entry.flow);
 	}
@@ -613,7 +621,7 @@ static void InfinitePhysics_ActivateAbove(int x, int y, int z) {
 	BlockID above;
 	if (y + 1 >= World.Height) return;
 
-	above = World_GetBlock(x, y + 1, z);
+	if (!World_TryGetPhysicsBlock(x, y + 1, z, &above)) return;
 	if (InfinitePhysics_IsFalling(above)) InfinitePhysics_Fall(x, y + 1, z);
 }
 
