@@ -949,9 +949,9 @@ static void InfiniteWorld_CompactChunks(void) {
 }
 
 
-static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
+static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkInternal(int chunkX, int chunkZ, cc_bool generate) {
 	struct InfiniteWorld_Chunk* chunk;
-	BlockRaw* blocks, *blocks2;
+	BlockRaw* blocks, *blocks2 = NULL;
 	if (!InfiniteWorld_Active) return NULL;
 	InfiniteWorld_CompactChunks();
 	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
@@ -974,7 +974,14 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 		InfiniteWorld_ChunksCapacity = capacity;
 	}
 
-	if (!InfiniteWorld_CreateChunkData(chunkX, chunkZ, NULL, 0, &blocks, &blocks2)) return NULL;
+	/* Loading saved blocks does not need to regenerate the terrain that
+	   the stream is about to overwrite. Keep the normal path deterministic. */
+	if (generate) {
+		if (!InfiniteWorld_CreateChunkData(chunkX, chunkZ, NULL, 0, &blocks, &blocks2)) return NULL;
+	} else {
+		blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
+		if (!blocks) return NULL;
+	}
 	chunk = &InfiniteWorld_Chunks[InfiniteWorld_ChunksCount];
 	chunk->x = chunkX;
 	chunk->z = chunkZ;
@@ -998,6 +1005,14 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ
 	InfiniteWorld_LruLinkHead(chunk);
 	InfiniteWorld_EvictChunks(chunk);
 	return chunk;
+}
+
+static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunk(int chunkX, int chunkZ) {
+	return InfiniteWorld_GetChunkInternal(chunkX, chunkZ, true);
+}
+
+static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkForLoad(int chunkX, int chunkZ) {
+	return InfiniteWorld_GetChunkInternal(chunkX, chunkZ, false);
 }
 
 cc_bool InfiniteWorld_TryGetBlock(int x, int y, int z, BlockID* block) {
@@ -1343,7 +1358,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		if (chunkX < -134217728 || chunkX > 134217727 ||
 			chunkZ < -134217728 || chunkZ > 134217727) { res = ERR_INVALID_ARGUMENT; goto failed; }
 		if (InfiniteWorld_FindChunk(chunkX, chunkZ)) { res = ERR_INVALID_ARGUMENT; goto failed; }
-		chunk = InfiniteWorld_GetChunk(chunkX, chunkZ);
+		chunk = InfiniteWorld_GetChunkForLoad(chunkX, chunkZ);
 		if (!chunk) { res = ERR_OUT_OF_MEMORY; goto failed; }
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 		if (version2) {
