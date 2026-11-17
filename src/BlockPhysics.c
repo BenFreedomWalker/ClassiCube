@@ -484,10 +484,10 @@ static cc_bool InfinitePhysics_NearSponge(int x, int y, int z) {
 	return false;
 }
 
-static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int flow) {
+static cc_bool InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int flow) {
 	BlockID other;
-	if (!World_Contains(x, y, z)) return;
-	if (!World_TryGetPhysicsBlock(x, y, z, &other)) return;
+	if (!World_Contains(x, y, z)) return true;
+	if (!World_TryGetPhysicsBlock(x, y, z, &other)) return false;
 	if (liquid == BLOCK_WATER || liquid == BLOCK_STILL_WATER) {
 		if (other == BLOCK_LAVA || other == BLOCK_STILL_LAVA) {
 			Game_UpdateBlock(x, y, z, BLOCK_STONE);
@@ -505,15 +505,19 @@ static void InfinitePhysics_SpreadTo(int x, int y, int z, BlockID liquid, int fl
 			Game_UpdateBlock(x, y, z, BLOCK_LAVA); InfinitePhysics_Queue(x, y, z, BLOCK_LAVA, flow);
 		}
 	}
+	return true;
 }
 static void InfinitePhysics_ActivateLiquid(int x, int y, int z, BlockID liquid, int flow) {
 	int maxFlow = (liquid == BLOCK_LAVA || liquid == BLOCK_STILL_LAVA) ? 3 : 7;
-	InfinitePhysics_SpreadTo(x, y - 1, z, liquid, flow);
-	if (flow >= maxFlow) return;
-	if (x > Int32_MinValue) InfinitePhysics_SpreadTo(x - 1, y, z, liquid, flow + 1);
-	if (x < Int32_MaxValue) InfinitePhysics_SpreadTo(x + 1, y, z, liquid, flow + 1);
-	if (z > Int32_MinValue) InfinitePhysics_SpreadTo(x, y, z - 1, liquid, flow + 1);
-	if (z < Int32_MaxValue) InfinitePhysics_SpreadTo(x, y, z + 1, liquid, flow + 1);
+	cc_bool complete = InfinitePhysics_SpreadTo(x, y - 1, z, liquid, flow);
+	if (flow < maxFlow) {
+		if (x > Int32_MinValue && !InfinitePhysics_SpreadTo(x - 1, y, z, liquid, flow + 1)) complete = false;
+		if (x < Int32_MaxValue && !InfinitePhysics_SpreadTo(x + 1, y, z, liquid, flow + 1)) complete = false;
+		if (z > Int32_MinValue && !InfinitePhysics_SpreadTo(x, y, z - 1, liquid, flow + 1)) complete = false;
+		if (z < Int32_MaxValue && !InfinitePhysics_SpreadTo(x, y, z + 1, liquid, flow + 1)) complete = false;
+	}
+	/* Retry the source when any neighbouring chunk could not be read. */
+	if (!complete) InfinitePhysics_Queue(x, y, z, liquid, flow);
 }
 /* Coordinate-based random ticks for the active area of an infinite world.
    Sampling is bounded per frame and centred on the local player. */
