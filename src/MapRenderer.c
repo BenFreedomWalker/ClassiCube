@@ -58,6 +58,7 @@ int MapRenderer_ChunksCount;
 static void ChunkInfo_Init(struct ChunkInfo* chunk, int x, int y, int z, int slotIndex) {
 	chunk->slotIndex = slotIndex;
 	chunk->retryFrame = frameCounter;
+	chunk->retryDelay = 0;
 	chunk->centreX = x + HALF_CHUNK_SIZE; chunk->centreY = y + HALF_CHUNK_SIZE; 
 	chunk->centreZ = z + HALF_CHUNK_SIZE;
 #if CC_GFX_BACKEND != CC_GFX_BACKEND_GL11
@@ -82,6 +83,7 @@ static CC_INLINE void ChunkInfo_Refresh(struct ChunkInfo* chunk) {
 	if (chunk->allAir) return; /* do not recreate chunks completely air */
 
 	chunk->retryFrame = frameCounter;
+	chunk->retryDelay = 0;
 	chunk->empty = false;
 	chunk->dirty = true;
 }
@@ -390,8 +392,11 @@ static void BuildChunk(struct ChunkInfo* chunk, int* chunkUpdates) {
 	Game.ChunkUpdates++;
 	(*chunkUpdates)++;
 	if (!Builder_MakeChunk(chunk)) {
-		/* A failed GPU allocation must not trigger a full mesh rebuild every frame. */
-		chunk->retryFrame = frameCounter + 30;
+		/* Back off repeated allocation/data failures to avoid sustained rebuild churn. */
+		if (chunk->retryDelay < 30) chunk->retryDelay = 30;
+		else if (chunk->retryDelay < 120) chunk->retryDelay *= 2;
+		else chunk->retryDelay = 120;
+		chunk->retryFrame = frameCounter + chunk->retryDelay;
 		/* Metadata was written before vertex-buffer allocation. Failed builds
 		   must not leave parts that DeleteChunk would count as registered. */
 		chunk->normalParts = NULL;
@@ -400,6 +405,7 @@ static void BuildChunk(struct ChunkInfo* chunk, int* chunkUpdates) {
 	}
 
 	chunk->retryFrame = frameCounter;
+	chunk->retryDelay = 0;
 	chunk->dirty  = false;
 	chunk->noData = !chunk->normalParts && !chunk->translucentParts;
 	chunk->empty  = chunk->noData;
