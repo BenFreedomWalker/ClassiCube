@@ -849,8 +849,20 @@ void MapRenderer_OnBlockChanged(int x, int y, int z, BlockID block) {
 			for (dy = dyMin; dy <= dyMax; dy++) {
 				for (dz = dzMin; dz <= dzMax; dz++) {
 					for (dx = dxMin; dx <= dxMax; dx++) {
+						int nx = cx + dx, ny = cy + dy, nz = cz + dz;
 						if (!dx && !dy && !dz) continue;
-						MapRenderer_RefreshChunk(cx + dx, cy + dy, cz + dz);
+						/* A previously empty neighbour may now contain a block in its mesh halo. */
+						if (Blocks.Draw[block] != DRAW_GAS && nx >= INFINITE_MIN_CHUNK && nx <= INFINITE_MAX_CHUNK &&
+							nz >= INFINITE_MIN_CHUNK && nz <= INFINITE_MAX_CHUNK) {
+							int index = InfiniteRenderSlot(nx, ny, nz);
+						struct ChunkInfo* neighbour = &mapChunks[index];
+						if (neighbour->centreX == nx * CHUNK_SIZE + HALF_CHUNK_SIZE &&
+							neighbour->centreY == ny * CHUNK_SIZE + HALF_CHUNK_SIZE &&
+							neighbour->centreZ == nz * CHUNK_SIZE + HALF_CHUNK_SIZE) {
+							neighbour->allAir = false;
+						}
+						}
+						MapRenderer_RefreshChunk(nx, ny, nz);
 					}
 				}
 			}
