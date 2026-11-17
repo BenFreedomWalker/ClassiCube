@@ -532,7 +532,7 @@ static void ReplaceCommand_Draw(IVec3 min, IVec3 max) {
 	for (y = min.y; y <= max.y; y++) {
 		for (z = min.z; z <= max.z; z++) {
 			for (x = min.x; x <= max.x; x++) {
-				cur = World_GetBlock(x, y, z);
+				if (!World_TryGetPhysicsBlock(x, y, z, &cur)) continue;
 				if (cur != source) continue;
 				Game_ChangeBlock(x, y, z, toPlace);
 			}
