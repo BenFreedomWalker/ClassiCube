@@ -105,12 +105,20 @@ void RayTracer_Step(struct RayTracer* t) {
 #define BORDER BLOCK_BEDROCK
 typedef cc_bool (*IntersectTest)(struct RayTracer* t);
 
-static BlockID Picking_GetInside(int x, int y, int z) {
+static BlockID Picking_GetInside(int x, int y, int z, cc_bool* readFailed) {
 	int floorY;
+	*readFailed = false;
 
 	if (World_ContainsXZ(x, z)) {
 		if (y >= World.Height) return BLOCK_AIR;
-		if (y >= 0) return World_GetBlock(x, y, z);
+		if (y >= 0) {
+			BlockID block;
+			if (World.Infinite && !World_TryGetPhysicsBlock(x, y, z, &block)) {
+				*readFailed = true;
+				return BLOCK_AIR;
+			}
+			return World.Infinite ? block : World_GetBlock(x, y, z);
+		}
 		floorY = 0;
 	} else {
 		floorY = Env_SidesHeight;
@@ -120,8 +128,9 @@ static BlockID Picking_GetInside(int x, int y, int z) {
 	return Env.SidesBlock != BLOCK_AIR && y < floorY ? BORDER : BLOCK_AIR;
 }
 
-static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin) {
+static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin, cc_bool* readFailed) {
 	cc_bool sides = Env.SidesBlock != BLOCK_AIR;
+	*readFailed = false;
 	if (World_ContainsXZ(x, z)) {
 		if (y >= World.Height) return BLOCK_AIR;
 
@@ -134,7 +143,14 @@ static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin) {
 			if (x == World.MaxX && origin.x >= 0) return BORDER;
 			if (z == World.MaxZ && origin.z >= 0) return BORDER;
 		}
-		if (y >= 0) return World_GetBlock(x, y, z);
+		if (y >= 0) {
+			BlockID block;
+			if (World.Infinite && !World_TryGetPhysicsBlock(x, y, z, &block)) {
+				*readFailed = true;
+				return BLOCK_AIR;
+			}
+			return World.Infinite ? block : World_GetBlock(x, y, z);
+		}
 
 	} else if (Env.SidesBlock != BLOCK_AIR && y >= 0 && y < Env_SidesHeight) {
 		/*         |
@@ -153,7 +169,7 @@ static BlockID Picking_GetOutside(int x, int y, int z, IVec3 origin) {
 
 static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir, float reach, IntersectTest intersect) {
 	IVec3 pOrigin;
-	cc_bool insideMap;
+	cc_bool insideMap, readFailed;
 	float reachSq;
 	Vec3 v;
 
@@ -178,7 +194,10 @@ static cc_bool RayTrace(struct RayTracer* t, const Vec3* origin, const Vec3* dir
 		x   = t->pos.x; y   = t->pos.y; z   = t->pos.z;
 		v.x = (float)x; v.y = (float)y; v.z = (float)z;
 
-		t->block = insideMap ? Picking_GetInside(x, y, z) : Picking_GetOutside(x, y, z, pOrigin);
+		t->block = insideMap ? Picking_GetInside(x, y, z, &readFailed)
+							: Picking_GetOutside(x, y, z, pOrigin, &readFailed);
+		/* Never let an unavailable infinite chunk masquerade as selectable air. */
+		if (readFailed) return false;
 		Vec3_Add(&t->Min, &v, &Blocks.RenderMinBB[t->block]);
 		Vec3_Add(&t->Max, &v, &Blocks.RenderMaxBB[t->block]);
 
