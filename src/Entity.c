@@ -879,7 +879,14 @@ static void LocalPlayer_DoRespawn(struct LocalPlayer* p) {
 			spawnY = Respawn_HighestSolidY(&bb);
 
 			if (spawnY == RESPAWN_NOT_FOUND) {
-				block   = World_SafeGetBlock(pos.x, y, pos.z);
+				if (World.Infinite) {
+					if (!World_TryGetPhysicsBlock(pos.x, y, pos.z, &block)) {
+						bb.Min.y += 1.0f; bb.Max.y += 1.0f;
+						continue;
+					}
+				} else {
+					block = World_SafeGetBlock(pos.x, y, pos.z);
+				}
 				height  = Blocks.Collide[block] == COLLIDE_SOLID ? Blocks.MaxBB[block].y : 0.0f;
 				spawn.y = y + height + ENTITY_ADJUSTMENT;
 				break;
