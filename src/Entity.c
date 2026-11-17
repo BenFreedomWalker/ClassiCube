@@ -172,7 +172,7 @@ cc_bool Entity_TouchesAny(struct AABB* bounds, Entity_TouchesCondition condition
 		for (z = bbMin.z; z <= bbMax.z; z++) { v.z = (float)z;
 			for (x = bbMin.x; x <= bbMax.x; x++) { v.x = (float)x;
 
-				block = World_GetBlock(x, y, z);
+				if (!World_TryGetPhysicsBlock(x, y, z, &block)) return false;
 				Vec3_Add(&blockBB.Min, &v, &Blocks.MinBB[block]);
 				Vec3_Add(&blockBB.Max, &v, &Blocks.MaxBB[block]);
 
