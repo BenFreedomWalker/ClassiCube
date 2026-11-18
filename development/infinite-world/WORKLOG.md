@@ -55,6 +55,7 @@ Source-audit checkboxes mean the code paths were inspected; they do not mean com
 
 ## Recent implementation commits
 
+- `d41847012312993be78e95a30a17059dc641f909` — Invalidate the static chunk lookup cache when `InfiniteWorld_Current` changes. The cache previously reused record indices across the active world and the temporary ICW load-staging state, allowing a matching coordinate to resolve to a record from the wrong store.
 - `c86b2839ad05ebc0a3aab67a78246960ab0652a4` — Split oversized chunk draws into index-safe batches. Changes GL1, GL2, D3D9, and D3D11 draw paths so a draw is divided into batches no larger than the shared 16-bit index buffer's 65,536-vertex addressable range. Backend source review is complete; no batching defect was found.
 - `6158620257c3d3493325977499cad793604132e0` — Handle GL11 chunk display-list allocation failures.
 - `f245db445647fbf88357e0dd88e5a85b884fcae6` — Clear stale chunk part metadata on empty batches.
