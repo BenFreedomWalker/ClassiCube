@@ -1302,9 +1302,10 @@ cc_result InfiniteWorld_Save(struct Stream* stream) {
 		if ((res = Stream_Write(stream, coords, sizeof(coords)))) return res;
 		if ((res = InfiniteWorld_WriteChunkData(stream, chunk))) return res;
 	}
-	/* ICW3 appends the local player's authoritative (non-interpolated) state. */
-	values[0] = e->next.pos.x; values[1] = e->next.pos.y; values[2] = e->next.pos.z;
-	values[3] = e->next.pitch; values[4] = e->next.yaw;
+	/* Save the live entity state. The interpolation target can lag behind the
+	   position updated by local-player physics when a save is requested. */
+	values[0] = e->Position.x; values[1] = e->Position.y; values[2] = e->Position.z;
+	values[3] = e->Pitch; values[4] = e->Yaw;
 	player[0] = 'P'; player[1] = 'L'; player[2] = 'Y'; player[3] = '1';
 	for (i = 0; i < 5; i++) {
 		Mem_Copy(&bits, &values[i], sizeof(bits));
