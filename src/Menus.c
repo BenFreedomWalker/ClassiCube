@@ -546,19 +546,19 @@ static void PauseScreen_Layout(void* screen) {
 static void PauseScreen_Init(void* screen) {
 	struct PauseScreen* s = (struct PauseScreen*)screen;
 	static const struct SimpleButtonDesc descs[] = {
-		{ -160,  -50, "Options...",             Menu_SwitchOptions   },
-		{ -160,    0, "Change texture pack...", Menu_SwitchTexPacks  },
-		{ -160,   50, "Hotkeys...",             Menu_SwitchHotkeys   },
-		{  160,  -50, "Generate new level...",  Menu_SwitchGenLevel  },
+		{ -160,  -60, "Options...",             Menu_SwitchOptions   },
+		{ -160,  -20, "Change texture pack...", Menu_SwitchTexPacks  },
+		{ -160,   20, "Hotkeys...",             Menu_SwitchHotkeys   },
+		{ -160,   60, "Infinite worlds...",     Menu_SwitchInfiniteWorlds },
+		{  160,  -40, "Generate new level...",  Menu_SwitchGenLevel  },
 		{  160,    0, "Load level...",          Menu_SwitchLoadLevel },
-		{  160,   50, "Save level...",          Menu_SwitchSaveLevel },
-		{  160,  100, "Infinite worlds...",     Menu_SwitchInfiniteWorlds }
+		{  160,   40, "Save level...",          Menu_SwitchSaveLevel }
 	};
 
 	s->widgets     = pause_widgets;
 	s->numWidgets  = 0;
 	s->maxWidgets  = Array_Elems(pause_widgets);
-	s->widgetsPerPage = 3;
+	s->widgetsPerPage = 4;
 	Event_Register_(&UserEvents.HackPermsChanged, s, PauseScreen_CheckHacksAllowed);
 
 	s->descs      = descs;
@@ -570,7 +570,7 @@ static void PauseScreen_Init(void* screen) {
 	if (Server.IsSinglePlayer) return;
 	s->btns[3].flags = WIDGET_FLAG_DISABLED;
 	s->btns[4].flags = WIDGET_FLAG_DISABLED;
-	s->btns[6].flags = WIDGET_FLAG_DISABLED;
+	s->btns[5].flags = WIDGET_FLAG_DISABLED;
 }
 
 static void PauseScreen_Free(void* screen) {
