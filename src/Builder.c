@@ -14,6 +14,7 @@
 #include "Game.h"
 #include "Options.h"
 #include "Logger.h"
+#include "String_.h"
 
 int Builder_SidesLevel, Builder_EdgeLevel;
 
@@ -22,7 +23,7 @@ static cc_bool Builder_IWDiagEntered, Builder_IWDiagCopyFailed, Builder_IWDiagAl
 static cc_bool Builder_IWDiagAllSolid, Builder_IWDiagNoFaces;
 static cc_bool Builder_IWDiagVbFailed, Builder_IWDiagBuilt;
 static void Builder_LogIWDiag(const char* message) {
-	cc_string msg = String_FromConst(message);
+	cc_string msg = String_FromReadonly(message);
 	Logger_Log(&msg);
 }
 /* Packs an index into the 16x16x16 count array. Coordinates range from 0 to 15. */
