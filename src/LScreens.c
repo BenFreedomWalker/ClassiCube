@@ -793,7 +793,8 @@ static struct InfiniteWorldSelectScreen {
 } InfiniteWorldSelectScreen CC_BIG_VAR;
 static struct LWidget* infiniteWorld_widgets[10];
 static char infiniteWorld_nameBuffers[65][STRING_SIZE];
-static cc_string infiniteWorld_names[65];
+static char infiniteWorld_pathBuffers[65][FILENAME_SIZE];
+static cc_string infiniteWorld_names[65], infiniteWorld_paths[65];
 static int infiniteWorld_count, infiniteWorld_page;
 
 LAYOUTS worldType_btnFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -70 } };
