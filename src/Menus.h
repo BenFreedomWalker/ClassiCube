@@ -45,7 +45,6 @@ void HotbarBindingsScreen_Show(void);
 void GenLevelScreen_Show(void);
 void ClassicGenScreen_Show(void);
 void LoadLevelScreen_Show(void);
-void InfiniteWorldScreen_Show(void);
 void SaveLevelScreen_Show(void);
 void TexturePackScreen_Show(void);
 void FontListScreen_Show(void);

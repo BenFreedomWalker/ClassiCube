@@ -231,7 +231,6 @@ static void Menu_SwitchNostalgia(void* a, void* b) { NostalgiaMenuScreen_Show();
 static void Menu_SwitchGenLevel(void* a, void* b)        { GenLevelScreen_Show(); }
 static void Menu_SwitchClassicGenLevel(void* a, void* b) { ClassicGenScreen_Show(); }
 static void Menu_SwitchLoadLevel(void* a, void* b)       { LoadLevelScreen_Show(); }
-static void Menu_SwitchInfiniteWorlds(void* a, void* b)  { InfiniteWorldScreen_Show(); }
 static void Menu_SwitchSaveLevel(void* a, void* b)       { SaveLevelScreen_Show(); }
 static void Menu_SwitchTexPacks(void* a, void* b)        { TexturePackScreen_Show(); }
 static void Menu_SwitchHotkeys(void* a, void* b)         { HotkeyListScreen_Show(); }
@@ -549,7 +548,6 @@ static void PauseScreen_Init(void* screen) {
 		{ -160,  -60, "Options...",             Menu_SwitchOptions   },
 		{ -160,  -20, "Change texture pack...", Menu_SwitchTexPacks  },
 		{ -160,   20, "Hotkeys...",             Menu_SwitchHotkeys   },
-		{ -160,   60, "Infinite worlds...",     Menu_SwitchInfiniteWorlds },
 		{  160,  -40, "Generate new level...",  Menu_SwitchGenLevel  },
 		{  160,    0, "Load level...",          Menu_SwitchLoadLevel },
 		{  160,   40, "Save level...",          Menu_SwitchSaveLevel }
@@ -570,7 +568,6 @@ static void PauseScreen_Init(void* screen) {
 	if (Server.IsSinglePlayer) return;
 	s->btns[3].flags = WIDGET_FLAG_DISABLED;
 	s->btns[4].flags = WIDGET_FLAG_DISABLED;
-	s->btns[5].flags = WIDGET_FLAG_DISABLED;
 }
 
 static void PauseScreen_Free(void* screen) {

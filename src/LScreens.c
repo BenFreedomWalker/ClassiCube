@@ -786,24 +786,167 @@ static struct WorldTypeScreen {
 } WorldTypeScreen CC_BIG_VAR;
 static struct LWidget* worldType_widgets[5];
 
+static struct InfiniteWorldSelectScreen {
+	LScreen_Layout
+	struct LButton worlds[5], prev, next, create, back;
+	struct LInput name;
+} InfiniteWorldSelectScreen CC_BIG_VAR;
+static struct LWidget* infiniteWorld_widgets[10];
+static char infiniteWorld_nameBuffers[64][STRING_SIZE];
+static cc_string infiniteWorld_names[64];
+static int infiniteWorld_count, infiniteWorld_page;
+
 LAYOUTS worldType_btnFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -70 } };
 LAYOUTS worldType_btnInfinite[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  10 } };
 LAYOUTS worldType_btnBack[]     = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  90 } };
 LAYOUTS worldType_lblFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -43 } };
 LAYOUTS worldType_lblInfinite[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  37 } };
+LAYOUTS infiniteWorld_row0[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -95 } };
+LAYOUTS infiniteWorld_row1[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -60 } };
+LAYOUTS infiniteWorld_row2[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -25 } };
+LAYOUTS infiniteWorld_row3[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  10 } };
+LAYOUTS infiniteWorld_row4[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  45 } };
+LAYOUTS infiniteWorld_prev[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  82 } };
+LAYOUTS infiniteWorld_next[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE,  82 } };
+LAYOUTS infiniteWorld_name[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, 120 } };
+LAYOUTS infiniteWorld_create[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, 160 } };
+LAYOUTS infiniteWorld_back[] = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, 198 } };
 
-static void WorldType_Start(cc_bool infinite) {
+static void WorldType_Start(cc_bool infinite, const cc_string* savePath) {
 	static const cc_string defUser = String_FromConst(DEFAULT_USERNAME);
 	const cc_string* user = &MainScreen.iptUsername.text;
 	if (!user->length) user = &defUser;
 	Options_SetBool("infinite-world", infinite);
+	Options_Set("infinite-world-save", infinite ? savePath : &String_Empty);
 	Options_SaveIfChanged();
 	Launcher_StartGame(user, &String_Empty, &String_Empty, &String_Empty, &String_Empty, 1);
 }
-static void WorldType_Finite(void* w)   { WorldType_Start(false); }
-static void WorldType_Infinite(void* w) { WorldType_Start(true); }
-static void WorldType_Back(void* w)     { MainScreen_SetActive(); }
+static void WorldType_Finite(void* w) { WorldType_Start(false, &String_Empty); }
+static void WorldType_Back(void* w) { MainScreen_SetActive(); }
+static void InfiniteWorldSelectScreen_SetActive(void);
 
+static void InfiniteWorld_EnumFiles(const cc_string* path, void* obj, int isDirectory) {
+	static const cc_string extension = String_FromConst(".icw");
+	cc_string name = *path;
+	int i;
+	(void)obj;
+	if (isDirectory) {
+		Directory_Enum(path, NULL, InfiniteWorld_EnumFiles);
+		return;
+	}
+	Utils_UNSAFE_GetFilename(&name);
+	if (!String_CaselessEnds(&name, &extension)) return;
+	name.length -= extension.length;
+	if (!name.length || infiniteWorld_count >= Array_Elems(infiniteWorld_names)) return;
+	for (i = 0; i < infiniteWorld_count; i++) {
+		if (String_CaselessEquals(&infiniteWorld_names[i], &name)) return;
+	}
+	String_InitArray(infiniteWorld_names[infiniteWorld_count], infiniteWorld_nameBuffers[infiniteWorld_count]);
+	String_Copy(&infiniteWorld_names[infiniteWorld_count], &name);
+	infiniteWorld_count++;
+}
+static void InfiniteWorld_LoadEntries(void) {
+	static const cc_string folder = String_FromConst("maps/worlds");
+	infiniteWorld_count = 0;
+	Utils_EnsureDirectory("maps/worlds");
+	Directory_Enum(&folder, NULL, InfiniteWorld_EnumFiles);
+}
+static void InfiniteWorld_Refresh(void) {
+	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
+	int i, index;
+	for (i = 0; i < Array_Elems(s->worlds); i++) {
+		index = infiniteWorld_page * 5 + i;
+		LButton_SetConst(&s->worlds[i], index < infiniteWorld_count ? infiniteWorld_names[index].buffer : "");
+	}
+	LButton_SetConst(&s->prev, infiniteWorld_page ? "< Previous" : "");
+	LButton_SetConst(&s->next, (infiniteWorld_page + 1) * 5 < infiniteWorld_count ? "Next >" : "");
+}
+static void InfiniteWorld_Select(void* w) {
+	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
+	int i, index;
+	for (i = 0; i < Array_Elems(s->worlds); i++) {
+		if (w != &s->worlds[i]) continue;
+		index = infiniteWorld_page * 5 + i;
+		if (index < infiniteWorld_count) {
+			cc_string path; char pathBuffer[FILENAME_SIZE];
+			String_InitArray(path, pathBuffer);
+			String_AppendConst(&path, "maps/worlds/");
+			String_AppendString(&path, &infiniteWorld_names[index]);
+			String_AppendConst(&path, ".icw");
+			WorldType_Start(true, &path);
+		}
+		return;
+	}
+}
+static void InfiniteWorld_Prev(void* w) {
+	if (infiniteWorld_page > 0) infiniteWorld_page--;
+	InfiniteWorld_Refresh();
+}
+static void InfiniteWorld_Next(void* w) {
+	if ((infiniteWorld_page + 1) * 5 < infiniteWorld_count) infiniteWorld_page++;
+	InfiniteWorld_Refresh();
+}
+static void InfiniteWorld_Create(void* w) {
+	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
+	cc_string input, name, path; char nameBuffer[STRING_SIZE], pathBuffer[FILENAME_SIZE];
+	cc_filepath rawPath;
+	int i;
+	LInput_UNSAFE_GetText(&s->name, &input);
+	String_InitArray(name, nameBuffer);
+	for (i = 0; i < input.length && name.length < 32; i++) {
+		char c = input.buffer[i];
+		cc_bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == ' ' || c == '_' || c == '-';
+		if (allowed) String_Append(&name, c);
+	}
+	while (name.length && name.buffer[name.length - 1] == ' ') name.length--;
+	while (name.length && name.buffer[0] == ' ') {
+		for (i = 1; i < name.length; i++) name.buffer[i - 1] = name.buffer[i];
+		name.length--;
+	}
+	if (!name.length) return;
+	String_InitArray(path, pathBuffer);
+	String_AppendConst(&path, "maps/worlds/");
+	String_AppendString(&path, &name);
+	String_AppendConst(&path, ".icw");
+	Platform_EncodePath(&rawPath, &path);
+	if (File_Exists(&rawPath)) {
+		LInput_SetString(&s->name, &String_Empty);
+		return;
+	}
+	Utils_EnsureDirectory("maps/worlds");
+	WorldType_Start(true, &path);
+}
+static void InfiniteWorld_Back(void* w) { WorldTypeScreen_SetActive(); }
+static void InfiniteWorld_Activated(struct LScreen* s_) {
+	struct InfiniteWorldSelectScreen* s = (struct InfiniteWorldSelectScreen*)s_;
+	LButton_Add(s, &s->worlds[0], 280, 30, "", InfiniteWorld_Select, infiniteWorld_row0);
+	LButton_Add(s, &s->worlds[1], 280, 30, "", InfiniteWorld_Select, infiniteWorld_row1);
+	LButton_Add(s, &s->worlds[2], 280, 30, "", InfiniteWorld_Select, infiniteWorld_row2);
+	LButton_Add(s, &s->worlds[3], 280, 30, "", InfiniteWorld_Select, infiniteWorld_row3);
+	LButton_Add(s, &s->worlds[4], 280, 30, "", InfiniteWorld_Select, infiniteWorld_row4);
+	LButton_Add(s, &s->prev, 100, 28, "< Previous", InfiniteWorld_Prev, infiniteWorld_prev);
+	LButton_Add(s, &s->next, 100, 28, "Next >", InfiniteWorld_Next, infiniteWorld_next);
+	LInput_Add(s, &s->name, 220, "New world name...", infiniteWorld_name);
+	LButton_Add(s, &s->create, 140, 30, "Create new world", InfiniteWorld_Create, infiniteWorld_create);
+	LButton_Add(s, &s->back, 80, 30, "Back", InfiniteWorld_Back, infiniteWorld_back);
+	InfiniteWorld_Refresh();
+}
+static void InfiniteWorldSelectScreen_SetActive(void) {
+	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
+	LScreen_Reset((struct LScreen*)s);
+	s->widgets = infiniteWorld_widgets;
+	s->maxWidgets = Array_Elems(infiniteWorld_widgets);
+	s->Activated = InfiniteWorld_Activated;
+	s->title = "Select Infinite World";
+	s->onEscapeWidget = (struct LWidget*)&s->back;
+	Launcher_SetScreen((struct LScreen*)s);
+}
+static void WorldType_Infinite(void* w) {
+	InfiniteWorld_LoadEntries();
+	infiniteWorld_page = 0;
+	InfiniteWorldSelectScreen_SetActive();
+}
 static void WorldType_Activated(struct LScreen* s_) {
 	struct WorldTypeScreen* s = (struct WorldTypeScreen*)s_;
 	LButton_Add(s, &s->btnFinite, 150, 35, "Finite World", WorldType_Finite, worldType_btnFinite);
@@ -812,7 +955,6 @@ static void WorldType_Activated(struct LScreen* s_) {
 	LLabel_Add(s, &s->lblInfinite, "&eEndless terrain streamed around the player", worldType_lblInfinite);
 	LButton_Add(s, &s->btnBack, 80, 35, "Back", WorldType_Back, worldType_btnBack);
 }
-
 static void WorldTypeScreen_SetActive(void) {
 	struct WorldTypeScreen* s = &WorldTypeScreen;
 	LScreen_Reset((struct LScreen*)s);
@@ -823,10 +965,7 @@ static void WorldTypeScreen_SetActive(void) {
 	s->onEscapeWidget = (struct LWidget*)&s->btnBack;
 	Launcher_SetScreen((struct LScreen*)s);
 }
-
-static void MainScreen_Singleplayer(void* w) {
-	WorldTypeScreen_SetActive();
-}
+static void MainScreen_Singleplayer(void* w) { WorldTypeScreen_SetActive(); }
 
 static void MainScreen_ResumeHover(void* w) {
 	cc_string str; char strBuffer[STRING_SIZE];
