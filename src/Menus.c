@@ -491,6 +491,15 @@ static void PauseScreenBase_Quit(void* a, void* b) {
 	Window_RequestClose(); 
 }
 
+static void PauseScreen_SaveInfiniteWorld(void* a, void* b) {
+	cc_result res = Game_SaveInfiniteWorld();
+	if (res) {
+		Chat_AddRaw("&cCould not save the infinite world. See the log for details.");
+	} else {
+		Chat_AddRaw("&aInfinite world saved.");
+	}
+}
+
 static void PauseScreenBase_Game(void* a, void* b) { 
 	Gui_Remove((struct Screen*)&PauseScreen); 
 }
@@ -552,6 +561,12 @@ static void PauseScreen_Init(void* screen) {
 		{  160,    0, "Load level...",          Menu_SwitchLoadLevel },
 		{  160,   40, "Save level...",          Menu_SwitchSaveLevel }
 	};
+	static const struct SimpleButtonDesc infiniteDescs[] = {
+		{ 0, -60, "Options...",             Menu_SwitchOptions },
+		{ 0, -20, "Change texture pack...", Menu_SwitchTexPacks },
+		{ 0,  20, "Hotkeys...",             Menu_SwitchHotkeys },
+		{ 0,  60, "Save world",             PauseScreen_SaveInfiniteWorld }
+	};
 
 	s->widgets     = pause_widgets;
 	s->numWidgets  = 0;
@@ -559,8 +574,8 @@ static void PauseScreen_Init(void* screen) {
 	s->widgetsPerPage = 4;
 	Event_Register_(&UserEvents.HackPermsChanged, s, PauseScreen_CheckHacksAllowed);
 
-	s->descs      = descs;
-	s->descsCount = Array_Elems(descs);
+	s->descs      = World.Infinite ? infiniteDescs : descs;
+	s->descsCount = World.Infinite ? Array_Elems(infiniteDescs) : Array_Elems(descs);
 	PauseScreenBase_AddWidgets(s, 300);
 	ButtonWidget_Add(s, &s->quit, 120, PauseScreenBase_Quit);
 	s->maxVertices = Screen_CalcDefaultMaxVertices(s);
