@@ -61,9 +61,17 @@ static cc_bool autoPause;
 static struct ScheduledTask2 InfiniteWorld_AutosaveTask;
 static struct ScheduledTask2 InfiniteWorld_AutosaveSaveTask;
 static cc_bool InfiniteWorld_AutosavePending;
+static cc_string InfiniteWorld_SavePath;
+static char InfiniteWorld_SavePathBuffer[FILENAME_SIZE];
+
+void Game_SetInfiniteWorldSavePath(const cc_string* path) {
+	String_InitArray(InfiniteWorld_SavePath, InfiniteWorld_SavePathBuffer);
+	if (path) String_Copy(&InfiniteWorld_SavePath, path);
+}
 
 static cc_result Game_SaveInfiniteAutosave(void) {
-	static const cc_string path = String_FromConst("maps/autosave.icw");
+	static const cc_string defaultPath = String_FromConst("maps/autosave.icw");
+	cc_string path = InfiniteWorld_SavePath.length ? InfiniteWorld_SavePath : defaultPath;
 	cc_filepath rawPath;
 	struct Stream stream;
 	cc_result res;
@@ -87,6 +95,36 @@ static cc_result Game_SaveInfiniteAutosave(void) {
 	}
 	World.LastSave = Game.Time;
 	return 0;
+}
+
+
+/* Creates a new named world using a minimal ICW2 header, then loads it through
+   the normal map loader so spawn placement and player state are initialised. */
+cc_result Game_CreateInfiniteWorld(const cc_string* path, int seed) {
+	cc_uint8 header[16];
+	cc_filepath rawPath;
+	struct Stream stream;
+	cc_result res, closeRes;
+
+	if (!Server.IsSinglePlayer || !path || !path->length) return ERR_NOT_SUPPORTED;
+	Platform_EncodePath(&rawPath, path);
+	if (File_Exists(&rawPath)) return ERR_INVALID_ARGUMENT;
+
+	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '2';
+	Mem_WriteU32_LE(&header[4], (cc_uint32)seed);
+	Mem_WriteU32_LE(&header[8], INFINITE_WORLD_HEIGHT);
+	Mem_WriteU32_LE(&header[12], 0);
+	res = Stream_CreatePath(&stream, &rawPath);
+	if (res) return res;
+	res = Stream_Write(&stream, header, sizeof(header));
+	closeRes = stream.Close(&stream);
+	if (res) return res;
+	if (closeRes) return closeRes;
+
+	res = Map_LoadFrom(path);
+	if (res) return res;
+	Game_SetInfiniteWorldSavePath(path);
+	return Game_SaveInfiniteAutosave();
 }
 
 static cc_bool Game_InfiniteWorldAutosave(struct ScheduledTask2* task) {

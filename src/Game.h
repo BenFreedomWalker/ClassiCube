@@ -102,6 +102,10 @@ void Game_Disconnect(const cc_string* title, const cc_string* reason);
 /* Resets game components without replacing the active world. */
 void Game_ResetComponents(void);
 void Game_Reset(void);
+/* Sets the active named infinite-world save file. */
+void Game_SetInfiniteWorldSavePath(const cc_string* path);
+/* Creates, loads, and initially saves a new infinite world at the given path. */
+cc_result Game_CreateInfiniteWorld(const cc_string* path, int seed);
 void Plugins_LoadAll(void);
 
 /* Sets the block in the map at the given coordinates, then updates state associated with the block. */
