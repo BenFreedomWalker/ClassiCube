@@ -1,4 +1,6 @@
 #include "InfiniteWorld.h"
+#include "Logger.h"
+#include "String_.h"
 #include "BlockID.h"
 #include "Platform.h"
 #include "World.h"
@@ -1082,6 +1084,12 @@ BlockID InfiniteWorld_GetBlock(int x, int y, int z) {
 
 /* Copies the builder's 18x18x18 mesh volume by resolving each intersecting
    16x64x16 data chunk once, rather than looking up every individual block. */
+static cc_bool InfiniteWorld_DiagCopyInactive, InfiniteWorld_DiagCopyNoBuffer, InfiniteWorld_DiagCopyChunkFailed;
+static void InfiniteWorld_LogCopyDiag(const char* message) {
+	cc_string msg = String_FromReadonly(message);
+	Logger_Log(&msg);
+}
+
 cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks) {
 	int minChunkX = InfiniteWorld_ChunkCoord(x1 - 1);
 	int maxChunkX = InfiniteWorld_ChunkCoord(x1 + 16);
@@ -1089,7 +1097,20 @@ cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks) {
 	int maxChunkZ = InfiniteWorld_ChunkCoord(z1 + 16);
 	int cx, cz, x, y, z, xx, yy, zz, sourceIndex, destIndex, index;
 	struct InfiniteWorld_Chunk* chunk;
-	if (!blocks || !InfiniteWorld_Active) return false;
+	if (!blocks) {
+		if (!InfiniteWorld_DiagCopyNoBuffer) {
+			InfiniteWorld_DiagCopyNoBuffer = true;
+			InfiniteWorld_LogCopyDiag("InfiniteWorld mesh diagnostic: mesh-data destination buffer is null.");
+		}
+		return false;
+	}
+	if (!InfiniteWorld_Active) {
+		if (!InfiniteWorld_DiagCopyInactive) {
+			InfiniteWorld_DiagCopyInactive = true;
+			InfiniteWorld_LogCopyDiag("InfiniteWorld mesh diagnostic: infinite-world store is inactive.");
+		}
+		return false;
+	}
 
 	for (cz = minChunkZ; cz <= maxChunkZ; cz++) {
 		for (cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -1102,7 +1123,13 @@ cc_bool InfiniteWorld_CopyMeshData(int x1, int y1, int z1, BlockID* blocks) {
 			int endZ = z1 + 16 < chunkZ + INFINITE_WORLD_CHUNK_SIZE - 1
 				? z1 + 16 : chunkZ + INFINITE_WORLD_CHUNK_SIZE - 1;
 			chunk = InfiniteWorld_GetChunk(cx, cz);
-			if (!chunk) return false;
+			if (!chunk) {
+				if (!InfiniteWorld_DiagCopyChunkFailed) {
+					InfiniteWorld_DiagCopyChunkFailed = true;
+					InfiniteWorld_LogCopyDiag("InfiniteWorld mesh diagnostic: data-chunk allocation or generation failed.");
+				}
+				return false;
+			}
 
 			for (z = startZ; z <= endZ; z++) {
 				zz = z - (z1 - 1);
