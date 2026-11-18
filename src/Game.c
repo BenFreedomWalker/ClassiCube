@@ -147,7 +147,7 @@ static cc_bool Game_InfiniteWorldAutosave(struct ScheduledTask2* task) {
 	/* Let the HUD render the progress message before writing the file. */
 	InfiniteWorld_AutosavePending = true;
 	{
-		static const cc_string status = String_FromConst("&eAutosaving...");
+		static const cc_string status = String_FromConst("&eAutosaving world...");
 		Chat_AddOf(&status, MSG_TYPE_BOTTOMRIGHT_1);
 	}
 	return true;
@@ -520,7 +520,7 @@ static void Game_Load(void) {
 	InfiniteWorld_AutosaveTask.interval = 10.0f;
 	InfiniteWorld_AutosaveTask.callback = Game_InfiniteWorldAutosave;
 	ScheduledTask2_Add(&InfiniteWorld_AutosaveTask);
-	InfiniteWorld_AutosaveSaveTask.interval = 0.25f;
+	InfiniteWorld_AutosaveSaveTask.interval = 1.0f;
 	InfiniteWorld_AutosaveSaveTask.callback = Game_InfiniteWorldAutosaveSave;
 	ScheduledTask2_Add(&InfiniteWorld_AutosaveSaveTask);
 
