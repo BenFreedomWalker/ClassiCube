@@ -1402,7 +1402,6 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	struct InfiniteWorld_State* previous;
 	cc_uint8 header[16], coords[8], upper[INFINITE_WORLD_CHUNK_VOLUME], player[24];
 	float playerValues[5];
-	InfiniteWorld_PlayerStatePending = false;
 	int i;
 	cc_bool version2, version3;
 	cc_uint32 count, n, position, length, bits;
@@ -1410,6 +1409,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	int seed, chunkX, chunkZ;
 	struct InfiniteWorld_Chunk* chunk;
 	cc_result res;
+	InfiniteWorld_PlayerStatePending = false;
 	if ((res = Stream_Read(stream, header, sizeof(header)))) return res;
 	version2 = header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '2';
 	version3 = header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '3';
