@@ -548,7 +548,7 @@ static void PauseScreen_Layout(void* screen) {
 	Menu_LayoutButtons(s->btns, s->descs, s->descsCount);
 	Menu_LayoutBack(&s->back);
 	Widget_SetLocation(&s->quit,  ANCHOR_MAX,    ANCHOR_MAX,    5,    5);
-	Widget_SetLocation(&s->title, ANCHOR_CENTRE, ANCHOR_CENTRE, 0, -100);
+	Widget_SetLocation(&s->title, ANCHOR_CENTRE, ANCHOR_CENTRE, 0, -145);
 }
 
 static void PauseScreen_Init(void* screen) {
@@ -574,8 +574,8 @@ static void PauseScreen_Init(void* screen) {
 	s->widgetsPerPage = 4;
 	Event_Register_(&UserEvents.HackPermsChanged, s, PauseScreen_CheckHacksAllowed);
 
-	s->descs      = World.Infinite ? infiniteDescs : descs;
-	s->descsCount = World.Infinite ? Array_Elems(infiniteDescs) : Array_Elems(descs);
+	s->descs      = descs;
+	s->descsCount = Array_Elems(descs);
 	PauseScreenBase_AddWidgets(s, 300);
 	ButtonWidget_Add(s, &s->quit, 120, PauseScreenBase_Quit);
 	s->maxVertices = Screen_CalcDefaultMaxVertices(s);
