@@ -4,6 +4,7 @@
 #include "BlockID.h"
 #include "Platform.h"
 #include "World.h"
+#include "Entity.h"
 #include "Stream.h"
 #include "Errors.h"
 #include "Game.h"
@@ -1280,13 +1281,15 @@ cc_result InfiniteWorld_CheckSave(void) {
 }
 
 cc_result InfiniteWorld_Save(struct Stream* stream) {
-	cc_uint8 header[16], coords[8];
-	cc_uint32 count = 0;
+	cc_uint8 header[16], coords[8], player[24];
+	cc_uint32 count = 0, bits;
+	struct Entity* e = &Entities.CurPlayer->Base;
+	float values[5];
 	int i;
 	cc_result res;
 	if ((res = InfiniteWorld_CheckSave())) return res;
 	for (i = 0; i < InfiniteWorld_ChunksCount; i++) if (InfiniteWorld_Chunks[i].modified) count++;
-	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '2';
+	header[0] = 'I'; header[1] = 'C'; header[2] = 'W'; header[3] = '3';
 	InfiniteWorld_WriteU32(&header[4], (cc_uint32)InfiniteWorld_Seed);
 	InfiniteWorld_WriteU32(&header[8], INFINITE_WORLD_HEIGHT);
 	InfiniteWorld_WriteU32(&header[12], count);
@@ -1299,7 +1302,15 @@ cc_result InfiniteWorld_Save(struct Stream* stream) {
 		if ((res = Stream_Write(stream, coords, sizeof(coords)))) return res;
 		if ((res = InfiniteWorld_WriteChunkData(stream, chunk))) return res;
 	}
-	return 0;
+	/* ICW3 appends the local player's authoritative (non-interpolated) state. */
+	values[0] = e->next.pos.x; values[1] = e->next.pos.y; values[2] = e->next.pos.z;
+	values[3] = e->next.pitch; values[4] = e->next.yaw;
+	player[0] = 'P'; player[1] = 'L'; player[2] = 'Y'; player[3] = '1';
+	for (i = 0; i < 5; i++) {
+		Mem_Copy(&bits, &values[i], sizeof(bits));
+		InfiniteWorld_WriteU32(&player[4 + i * 4], bits);
+	}
+	return Stream_Write(stream, player, sizeof(player));
 }
 struct InfiniteWorld_ChunkCoordPair { int x, z; };
 
@@ -1384,24 +1395,27 @@ static cc_result InfiniteWorld_PreflightRecords(struct Stream* stream, cc_uint32
 cc_result InfiniteWorld_Load(struct Stream* stream) {
 	struct InfiniteWorld_State staged = { 0 };
 	struct InfiniteWorld_State* previous;
-	cc_uint8 header[16], coords[8], upper[INFINITE_WORLD_CHUNK_VOLUME];
+	cc_uint8 header[16], coords[8], upper[INFINITE_WORLD_CHUNK_VOLUME], player[24];
+	struct LocationUpdate playerUpdate;
+	float playerValues[5];
 	int i;
-	cc_bool version2;
-	cc_uint32 count, n, position, length;
+	cc_bool version2, version3;
+	cc_uint32 count, n, position, length, bits;
 	cc_uint64 recordSize, required;
 	int seed, chunkX, chunkZ;
 	struct InfiniteWorld_Chunk* chunk;
 	cc_result res;
 	if ((res = Stream_Read(stream, header, sizeof(header)))) return res;
 	version2 = header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '2';
-	if (!version2 && !(header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '1')) return ERR_INVALID_ARGUMENT;
+	version3 = header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '3';
+	if (!version2 && !version3 && !(header[0] == 'I' && header[1] == 'C' && header[2] == 'W' && header[3] == '1')) return ERR_INVALID_ARGUMENT;
 	seed = (int)(cc_int32)InfiniteWorld_ReadU32(&header[4]);
 	if (InfiniteWorld_ReadU32(&header[8]) != INFINITE_WORLD_HEIGHT) return ERR_INVALID_ARGUMENT;
 	count = InfiniteWorld_ReadU32(&header[12]);
 	if (count > INFINITE_WORLD_MAX_SAVED_CHUNKS) return ERR_INVALID_ARGUMENT;
 	recordSize = 8 + INFINITE_WORLD_CHUNK_VOLUME;
 	/* ICW2 has a fixed 16-bit payload; ICW1 follows its historical build layout. */
-	if (version2) {
+	if (version2 || version3) {
 		recordSize += INFINITE_WORLD_CHUNK_VOLUME;
 	} else {
 #ifdef EXTENDED_BLOCKS
@@ -1410,7 +1424,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	}
 	/* Reject truncated files before replacing the currently loaded world. */
 	if (!stream->Position(stream, &position) && !stream->Length(stream, &length)) {
-		required = (cc_uint64)count * recordSize;
+		required = (cc_uint64)count * recordSize + (version3 ? sizeof(player) : 0);
 		if (position > length || required > (cc_uint64)(length - position)) return ERR_END_OF_STREAM;
 	}
 	/* Bounds and duplicate checks must also happen before staging begins.
@@ -1437,7 +1451,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		chunk = InfiniteWorld_GetChunkForLoad(chunkX, chunkZ);
 		if (!chunk) { res = ERR_OUT_OF_MEMORY; goto failed; }
 		if ((res = Stream_Read(stream, chunk->blocks, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
-		if (version2) {
+		if (version2 || version3) {
 			if ((res = Stream_Read(stream, upper, INFINITE_WORLD_CHUNK_VOLUME))) goto failed;
 			for (i = 0; i < INFINITE_WORLD_CHUNK_VOLUME; i++) {
 				cc_uint16 block = (cc_uint16)chunk->blocks[i] | ((cc_uint16)upper[i] << 8);
@@ -1476,12 +1490,43 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 		chunk->modified = true;
 	}
 
+	if (version3) {
+		if ((res = Stream_Read(stream, player, sizeof(player)))) goto failed;
+		if (player[0] != 'P' || player[1] != 'L' || player[2] != 'Y' || player[3] != '1') {
+			res = ERR_INVALID_ARGUMENT;
+			goto failed;
+		}
+		for (i = 0; i < 5; i++) {
+			bits = InfiniteWorld_ReadU32(&player[4 + i * 4]);
+			Mem_Copy(&playerValues[i], &bits, sizeof(bits));
+			if (playerValues[i] != playerValues[i] || playerValues[i] > 1.0e20f || playerValues[i] < -1.0e20f) {
+				res = ERR_INVALID_ARGUMENT;
+				goto failed;
+			}
+		}
+		if (playerValues[1] < -1024.0f || playerValues[1] > 4096.0f ||
+			playerValues[0] < -2147483000.0f || playerValues[0] > 2147483000.0f ||
+			playerValues[2] < -2147483000.0f || playerValues[2] > 2147483000.0f) {
+			res = ERR_INVALID_ARGUMENT;
+			goto failed;
+		}
+	}
+
 	/* Install the complete store before notifying renderer and gameplay code. */
 	InfiniteWorld_Current = previous;
 	World_SetInfiniteMapNoEvent(seed, INFINITE_WORLD_HEIGHT);
 	Game_ResetComponents();
 	*previous = staged;
 	World_RaiseMapLoaded();
+	if (version3) {
+		playerUpdate.flags = LU_HAS_POS | LU_HAS_PITCH | LU_HAS_YAW;
+		playerUpdate.pos.x = playerValues[0];
+		playerUpdate.pos.y = playerValues[1];
+		playerUpdate.pos.z = playerValues[2];
+		playerUpdate.pitch = playerValues[3];
+		playerUpdate.yaw = playerValues[4];
+		Entities.CurPlayer->Base.VTABLE->SetLocation(&Entities.CurPlayer->Base, &playerUpdate);
+	}
 	return 0;
 
 failed:
