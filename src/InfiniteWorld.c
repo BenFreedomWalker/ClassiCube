@@ -1414,7 +1414,7 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	count = InfiniteWorld_ReadU32(&header[12]);
 	if (count > INFINITE_WORLD_MAX_SAVED_CHUNKS) return ERR_INVALID_ARGUMENT;
 	recordSize = 8 + INFINITE_WORLD_CHUNK_VOLUME;
-	/* ICW2 has a fixed 16-bit payload; ICW1 follows its historical build layout. */
+	/* ICW2/ICW3 have a fixed 16-bit payload; ICW1 follows its historical build layout. */
 	if (version2 || version3) {
 		recordSize += INFINITE_WORLD_CHUNK_VOLUME;
 	} else {

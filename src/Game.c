@@ -42,6 +42,7 @@
 #include "Formats.h"
 #include "EntityRenderers.h"
 #include "Errors.h"
+#include "String_.h"
 
 struct _GameData Game;
 static cc_uint64 frameStart;
