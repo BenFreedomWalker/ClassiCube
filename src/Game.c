@@ -59,6 +59,8 @@ static float gfx_minFrameMs;
 static cc_bool autoPause;
 
 static struct ScheduledTask2 InfiniteWorld_AutosaveTask;
+static struct ScheduledTask2 InfiniteWorld_AutosaveSaveTask;
+static cc_bool InfiniteWorld_AutosavePending;
 
 static cc_result Game_SaveInfiniteAutosave(void) {
 	static const cc_string path = String_FromConst("maps/autosave.icw");
@@ -95,7 +97,22 @@ static cc_bool Game_InfiniteWorldAutosave(struct ScheduledTask2* task) {
 	interval = Options_GetInt("infinite-autosave-interval", 1, 60, 5);
 	if (World.LastSave < 0.0) World.LastSave = Game.Time;
 	if (Game.Time - World.LastSave < interval * 60.0) return true;
+
+	/* Let the HUD render the progress message before writing the file. */
+	InfiniteWorld_AutosavePending = true;
+	{
+		static const cc_string status = String_FromConst("&eAutosaving...");
+		Chat_AddOf(&status, MSG_TYPE_BOTTOMRIGHT_1);
+	}
+	return true;
+}
+
+static cc_bool Game_InfiniteWorldAutosaveSave(struct ScheduledTask2* task) {
+	(void)task;
+	if (!InfiniteWorld_AutosavePending) return true;
+	InfiniteWorld_AutosavePending = false;
 	Game_SaveInfiniteAutosave();
+	Chat_AddOf(&String_Empty, MSG_TYPE_BOTTOMRIGHT_1);
 	return true;
 }
 
@@ -457,6 +474,9 @@ static void Game_Load(void) {
 	InfiniteWorld_AutosaveTask.interval = 10.0f;
 	InfiniteWorld_AutosaveTask.callback = Game_InfiniteWorldAutosave;
 	ScheduledTask2_Add(&InfiniteWorld_AutosaveTask);
+	InfiniteWorld_AutosaveSaveTask.interval = 0.25f;
+	InfiniteWorld_AutosaveSaveTask.callback = Game_InfiniteWorldAutosaveSave;
+	ScheduledTask2_Add(&InfiniteWorld_AutosaveSaveTask);
 
 	Event_Register_(&WorldEvents.NewMap,           NULL, HandleOnNewMap);
 	Event_Register_(&WorldEvents.MapLoaded,        NULL, HandleOnNewMapLoaded);
@@ -891,9 +911,12 @@ void Game_RenderFrame(void) {
 }
 
 void Game_Free(void) {
-	/* Preserve the last position and edits when leaving an infinite world. */
-	if (Options_GetBool("infinite-autosave", true)) Game_SaveInfiniteAutosave();
 	struct IGameComponent* comp;
+	/* Always persist the current single-player infinite world on application exit,
+	   even when periodic autosave has been disabled. */
+	InfiniteWorld_AutosavePending = false;
+	Chat_AddOf(&String_Empty, MSG_TYPE_BOTTOMRIGHT_1);
+	Game_SaveInfiniteAutosave();
 	/* Most components will call OnContextLost in their Free functions */
 	/* Set to false so components will always free managed textures too */
 	Gfx.ManagedTextures = false;
