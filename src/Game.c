@@ -97,6 +97,10 @@ static cc_result Game_SaveInfiniteAutosave(void) {
 	return 0;
 }
 
+cc_result Game_SaveInfiniteWorld(void) {
+	return Game_SaveInfiniteAutosave();
+}
+
 
 /* Creates a new named world using a minimal ICW2 header, then loads it through
    the normal map loader so spawn placement and player state are initialised. */
@@ -107,6 +111,10 @@ cc_result Game_CreateInfiniteWorld(const cc_string* path, int seed) {
 	cc_result res, closeRes;
 
 	if (!Server.IsSinglePlayer || !path || !path->length) return ERR_NOT_SUPPORTED;
+	if (World.Infinite && World.Loaded) {
+		res = Game_SaveInfiniteAutosave();
+		if (res) return res;
+	}
 	Platform_EncodePath(&rawPath, path);
 	if (File_Exists(&rawPath)) return ERR_INVALID_ARGUMENT;
 

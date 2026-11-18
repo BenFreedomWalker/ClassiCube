@@ -1847,6 +1847,10 @@ static void InfiniteWorldScreen_EntryClick(void* screen, void* widget) {
 		String_AppendString(&path, &name);
 		String_AppendConst(&path, ".icw");
 	}
+	if (World.Infinite && Game_SaveInfiniteWorld()) {
+		Chat_AddRaw("&cCould not save the current infinite world; switching was cancelled.");
+		return;
+	}
 	res = Map_LoadFrom(&path);
 	if (!res && World.Infinite) {
 		Game_SetInfiniteWorldSavePath(&path);
@@ -1932,6 +1936,10 @@ static void LoadLevelScreen_EntryClick(void* screen, void* widget) {
 	cc_string relPath = ListScreen_UNSAFE_GetCur(s, widget);
 	String_InitArray(path, pathBuffer);
 	String_Format1(&path, "maps/%s", &relPath);
+	if (World.Infinite && Game_SaveInfiniteWorld()) {
+		Chat_AddRaw("&cCould not save the current infinite world; switching was cancelled.");
+		return;
+	}
 	res = Map_LoadFrom(&path);
 	if (!res && World.Infinite) Game_SetInfiniteWorldSavePath(&path);
 
@@ -1960,6 +1968,10 @@ static void LoadLevelScreen_LoadEntries(struct ListScreen* s) {
 }
 
 static void LoadLevelScreen_UploadCallback(const cc_string* path) {
+	if (World.Infinite && Game_SaveInfiniteWorld()) {
+		Chat_AddRaw("&cCould not save the current infinite world; switching was cancelled.");
+		return;
+	}
 	if (!Map_LoadFrom(path) && World.Infinite) Game_SetInfiniteWorldSavePath(path);
 }
 static void LoadLevelScreen_ActionFunc(void* s, void* w) {
