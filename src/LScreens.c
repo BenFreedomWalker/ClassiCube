@@ -930,6 +930,7 @@ static void InfiniteWorld_Create(void* w) {
 	if (!Utils_EnsureDirectory("maps/worlds")) return;
 	WorldType_Start(true, &path);
 }
+static void WorldTypeScreen_SetActive(void);
 static void InfiniteWorld_Back(void* w) { WorldTypeScreen_SetActive(); }
 static void InfiniteWorld_Activated(struct LScreen* s_) {
 	struct InfiniteWorldSelectScreen* s = (struct InfiniteWorldSelectScreen*)s_;

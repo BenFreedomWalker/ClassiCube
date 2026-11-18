@@ -134,30 +134,30 @@ static void SPConnection_BeginConnect(void) {
 		Options_SetBool("infinite-world", false);
 		Options_SaveIfChanged();
 	}
-	String_InitArray(selectedPath, selectedBuffer);
 	Options_Get("infinite-world-save", &selectedPath, "");
+	String_InitArray(SP_AutoloadMap, selectedBuffer);
+	String_Copy(&SP_AutoloadMap, &selectedPath);
 	if (selectedPath.length) {
 		Options_Set("infinite-world-save", &String_Empty);
 		Options_SaveIfChanged();
 	}
 
-	/* Load the selected infinite world, or create it on first launch. */
-	if (infinite && selectedPath.length) {
-		Platform_EncodePath(&rawPath, &selectedPath);
-		if (File_Exists(&rawPath)) {
-			cc_result res = Map_LoadFrom(&selectedPath);
-			if (res) {
-				Chat_AddRaw("&cCould not load the selected infinite world. See the log for details.");
-				return;
-			}
-			Game_SetInfiniteWorldSavePath(&selectedPath);
-			return;
-		}
-	}
-
 	/* For when user drops a map file onto ClassiCube.exe */
 	if (SP_AutoloadMap.length) {
-		Map_LoadFrom(&SP_AutoloadMap); return;
+		if (infinite) {
+			Platform_EncodePath(&rawPath, &SP_AutoloadMap);
+			if (File_Exists(&rawPath)) {
+				cc_result res = Map_LoadFrom(&SP_AutoloadMap);
+				if (res) {
+					Chat_AddRaw("&cCould not load the selected infinite world. See the log for details.");
+					return;
+				}
+				Game_SetInfiniteWorldSavePath(&SP_AutoloadMap);
+				return;
+			}
+		} else {
+			Map_LoadFrom(&SP_AutoloadMap); return;
+		}
 	}
 
 #if defined CC_BUILD_NDS || defined CC_BUILD_PS1 || defined CC_BUILD_SATURN || defined CC_BUILD_MACCLASSIC || defined CC_BUILD_TINYMEM
@@ -188,10 +188,8 @@ static void SPConnection_BeginConnect(void) {
 		update.yaw = 0.0f;
 		update.pitch = 0.0f;
 		LocalPlayers_MoveToSpawn(&update);
-		if (selectedPath.length) {
-			Game_SetInfiniteWorldSavePath(&selectedPath);
-			Game_SaveInfiniteWorld();
-		}
+		if (SP_AutoloadMap.length) Game_SetInfiniteWorldSavePath(&SP_AutoloadMap);
+		Game_SaveInfiniteWorld();
 		return;
 	}
 	Gen_Start(gen, seed, horSize, verSize, horSize);
