@@ -810,10 +810,18 @@ static cc_bool InfiniteWorld_RebuildChunkSlots(cc_uint32 capacity) {
 
 static struct InfiniteWorld_Chunk* InfiniteWorld_FindChunk(int chunkX, int chunkZ) {
 	static int cacheIndices[9] = { -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+	static struct InfiniteWorld_State* cacheState;
 	cc_uint32 index, slot;
 	int cacheX = chunkX % 3, cacheZ = chunkZ % 3;
 	int cacheSlot;
 
+	/* The chunk store is redirected to a staging state during load. Cached
+	   record indices are only meaningful for the state they came from. */
+	if (cacheState != InfiniteWorld_Current) {
+		int i;
+		for (i = 0; i < 9; i++) cacheIndices[i] = -1;
+		cacheState = InfiniteWorld_Current;
+	}
 	if (cacheX < 0) cacheX += 3;
 	if (cacheZ < 0) cacheZ += 3;
 	cacheSlot = cacheX * 3 + cacheZ;
