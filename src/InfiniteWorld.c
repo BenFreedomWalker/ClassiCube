@@ -975,14 +975,31 @@ static void InfiniteWorld_CompactChunks(void) {
 }
 
 
+static cc_bool InfiniteWorld_DiagChunkInactive, InfiniteWorld_DiagMaterializeFailed;
+static cc_bool InfiniteWorld_DiagChunkArrayGrowFailed, InfiniteWorld_DiagChunkSlotsInsertFailed;
+static void InfiniteWorld_LogChunkStoreDiag(cc_bool* shown, const char* message) {
+	if (*shown) return;
+	*shown = true;
+	{
+		cc_string msg = String_FromReadonly(message);
+		Logger_Log(&msg);
+	}
+}
+
 static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkInternal(int chunkX, int chunkZ, cc_bool generate) {
 	struct InfiniteWorld_Chunk* chunk;
 	BlockRaw* blocks, *blocks2 = NULL;
-	if (!InfiniteWorld_Active) return NULL;
+	if (!InfiniteWorld_Active) {
+		InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkInactive, "InfiniteWorld mesh diagnostic: chunk store inactive in GetChunkInternal.");
+		return NULL;
+	}
 	InfiniteWorld_CompactChunks();
 	chunk = InfiniteWorld_FindChunk(chunkX, chunkZ);
 	if (chunk) {
-		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) return NULL;
+		if (!chunk->blocks && !InfiniteWorld_MaterializeChunk(chunk)) {
+			InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagMaterializeFailed, "InfiniteWorld mesh diagnostic: existing chunk materialization failed.");
+			return NULL;
+		}
 		++InfiniteWorld_AccessCounter;
 		InfiniteWorld_LruTouch(chunk);
 		InfiniteWorld_EvictChunks(chunk);
@@ -992,10 +1009,16 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkInternal(int chunkX, in
 	if (InfiniteWorld_ChunksCount == InfiniteWorld_ChunksCapacity) {
 		int capacity = InfiniteWorld_ChunksCapacity ? InfiniteWorld_ChunksCapacity * 2 : 16;
 		struct InfiniteWorld_Chunk* grown;
-		if (capacity < InfiniteWorld_ChunksCapacity) return NULL;
+		if (capacity < InfiniteWorld_ChunksCapacity) {
+			InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkArrayGrowFailed, "InfiniteWorld mesh diagnostic: chunk-record capacity overflow.");
+			return NULL;
+		}
 		grown = (struct InfiniteWorld_Chunk*)Mem_TryRealloc(
 			InfiniteWorld_Chunks, (cc_uint32)capacity, sizeof(struct InfiniteWorld_Chunk));
-		if (!grown) return NULL;
+		if (!grown) {
+			InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkArrayGrowFailed, "InfiniteWorld mesh diagnostic: chunk-record array allocation failed.");
+			return NULL;
+		}
 		InfiniteWorld_Chunks = grown;
 		InfiniteWorld_ChunksCapacity = capacity;
 	}
@@ -1022,6 +1045,7 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkInternal(int chunkX, in
 	chunk->editCount = 0;
 	chunk->lruPrev = chunk->lruNext = -1;
 	if (!InfiniteWorld_InsertChunkSlot(chunkX, chunkZ, InfiniteWorld_ChunksCount)) {
+		InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkSlotsInsertFailed, "InfiniteWorld mesh diagnostic: chunk-coordinate hash-table allocation or insertion failed.");
 		Mem_Free(blocks);
 		Mem_Free(blocks2);
 		return NULL;
