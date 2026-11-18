@@ -792,8 +792,8 @@ static struct InfiniteWorldSelectScreen {
 	struct LInput name;
 } InfiniteWorldSelectScreen CC_BIG_VAR;
 static struct LWidget* infiniteWorld_widgets[10];
-static char infiniteWorld_nameBuffers[64][STRING_SIZE];
-static cc_string infiniteWorld_names[64];
+static char infiniteWorld_nameBuffers[65][STRING_SIZE];
+static cc_string infiniteWorld_names[65];
 static int infiniteWorld_count, infiniteWorld_page;
 
 LAYOUTS worldType_btnFinite[]   = { { ANCHOR_CENTRE, 0 }, { ANCHOR_CENTRE, -70 } };
@@ -847,9 +847,18 @@ static void InfiniteWorld_EnumFiles(const cc_string* path, void* obj, int isDire
 }
 static void InfiniteWorld_LoadEntries(void) {
 	static const cc_string folder = String_FromConst("maps/worlds");
+	static const cc_string legacy = String_FromConst("autosave (legacy)");
+	static const cc_string legacyPath = String_FromConst("maps/autosave.icw");
+	cc_filepath rawPath;
 	infiniteWorld_count = 0;
 	Utils_EnsureDirectory("maps/worlds");
 	Directory_Enum(&folder, NULL, InfiniteWorld_EnumFiles);
+	Platform_EncodePath(&rawPath, &legacyPath);
+	if (File_Exists(&rawPath) && infiniteWorld_count < Array_Elems(infiniteWorld_names)) {
+		String_InitArray(infiniteWorld_names[infiniteWorld_count], infiniteWorld_nameBuffers[infiniteWorld_count]);
+		String_Copy(&infiniteWorld_names[infiniteWorld_count], &legacy);
+		infiniteWorld_count++;
+	}
 }
 static void InfiniteWorld_Refresh(void) {
 	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
@@ -870,9 +879,13 @@ static void InfiniteWorld_Select(void* w) {
 		if (index < infiniteWorld_count) {
 			cc_string path; char pathBuffer[FILENAME_SIZE];
 			String_InitArray(path, pathBuffer);
-			String_AppendConst(&path, "maps/worlds/");
-			String_AppendString(&path, &infiniteWorld_names[index]);
-			String_AppendConst(&path, ".icw");
+			if (String_CaselessEqualsConst(&infiniteWorld_names[index], "autosave (legacy)")) {
+				String_AppendConst(&path, "maps/autosave.icw");
+			} else {
+				String_AppendConst(&path, "maps/worlds/");
+				String_AppendString(&path, &infiniteWorld_names[index]);
+				String_AppendConst(&path, ".icw");
+			}
 			WorldType_Start(true, &path);
 		}
 		return;
@@ -914,7 +927,7 @@ static void InfiniteWorld_Create(void* w) {
 		LInput_SetString(&s->name, &String_Empty);
 		return;
 	}
-	Utils_EnsureDirectory("maps/worlds");
+	if (!Utils_EnsureDirectory("maps/worlds")) return;
 	WorldType_Start(true, &path);
 }
 static void InfiniteWorld_Back(void* w) { WorldTypeScreen_SetActive(); }
