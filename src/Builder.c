@@ -13,8 +13,18 @@
 #include "TexturePack.h"
 #include "Game.h"
 #include "Options.h"
+#include "Logger.h"
 
 int Builder_SidesLevel, Builder_EdgeLevel;
+
+/* One-time infinite-world mesh diagnostics, written to client.log. */
+static cc_bool Builder_IWDiagCopyFailed, Builder_IWDiagAllAir;
+static cc_bool Builder_IWDiagAllSolid, Builder_IWDiagNoFaces;
+static cc_bool Builder_IWDiagVbFailed, Builder_IWDiagBuilt;
+static void Builder_LogIWDiag(const char* message) {
+	cc_string msg = String_FromConst(message);
+	Logger_Log(&msg);
+}
 /* Packs an index into the 16x16x16 count array. Coordinates range from 0 to 15. */
 #define Builder_PackCount(xx, yy, zz) ((((yy) << 8) | ((zz) << 4) | (xx)) * FACE_COUNT)
 /* Packs an index into the 18x18x18 chunk array. Coordinates range from -1 to 16. */
@@ -426,7 +436,13 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	if (World.Infinite) {
 		/* X/Z have no borders in an infinite world; only Y is bounded. */
 		Mem_Set(chunk, BLOCK_AIR, EXTCHUNK_SIZE_3 * sizeof(BlockID));
-		if (!ReadInfiniteChunkData(x1, y1, z1, &allAir, &allSolid)) return false;
+		if (!ReadInfiniteChunkData(x1, y1, z1, &allAir, &allSolid)) {
+			if (!Builder_IWDiagCopyFailed) {
+				Builder_IWDiagCopyFailed = true;
+				Builder_LogIWDiag("InfiniteWorld mesh diagnostic: mesh-data copy failed.");
+			}
+			return false;
+		}
 		onBorder = y1 == 0 || y1 + CHUNK_SIZE >= World.Height;
 	} else {
 		onBorder =
@@ -443,7 +459,17 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	}
 
 	info->allAir = allAir;
-	if (allAir || allSolid) return true;
+	if (allAir || allSolid) {
+		if (allAir && !Builder_IWDiagAllAir) {
+			Builder_IWDiagAllAir = true;
+			Builder_LogIWDiag("InfiniteWorld mesh diagnostic: copied chunk classified entirely as air.");
+		}
+		if (allSolid && !Builder_IWDiagAllSolid) {
+			Builder_IWDiagAllSolid = true;
+			Builder_LogIWDiag("InfiniteWorld mesh diagnostic: copied chunk classified entirely as full opaque blocks.");
+		}
+		return true;
+	}
 	Lighting.LightHint(x1 - 1, y1 - 1, z1 - 1);
 
 	Mem_Set(counts, 1, CHUNK_SIZE_3 * FACE_COUNT);
@@ -461,7 +487,13 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	PrepareChunk(x1, y1, z1);
 
 	totalVerts = Builder_TotalVerticesCount();
-	if (!totalVerts) return true;
+	if (!totalVerts) {
+		if (!Builder_IWDiagNoFaces) {
+			Builder_IWDiagNoFaces = true;
+			Builder_LogIWDiag("InfiniteWorld mesh diagnostic: chunk contains non-air blocks but face counting produced zero vertices.");
+		}
+		return true;
+	}
 	
 	OutputChunkPartsMeta(x1, y1, z1, info);
 #ifdef OCCLUSION
@@ -472,7 +504,13 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 #if CC_GFX_BACKEND != CC_GFX_BACKEND_GL11
 	/* add an extra element to fix crashing on some GPUs */
 	info->vb = Gfx_TryCreateStaticVb(VERTEX_FORMAT_TEXTURED, totalVerts + 1);
-	if (!info->vb) return false;
+	if (!info->vb) {
+		if (!Builder_IWDiagVbFailed) {
+			Builder_IWDiagVbFailed = true;
+			Builder_LogIWDiag("InfiniteWorld mesh diagnostic: geometry exists but GPU vertex-buffer allocation failed.");
+		}
+		return false;
+	}
 
 	Builder_Vertices = (struct VertexTextured*)Gfx_LockVb(info->vb,
 													VERTEX_FORMAT_TEXTURED, totalVerts + 1);
@@ -525,6 +563,10 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 #else
 	Gfx_UnlockVb(info->vb);
 #endif
+	if (World.Infinite && !Builder_IWDiagBuilt) {
+		Builder_IWDiagBuilt = true;
+		Builder_LogIWDiag("InfiniteWorld mesh diagnostic: chunk mesh and GPU vertex buffer built successfully.");
+	}
 	return true;
 }
 
