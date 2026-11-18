@@ -839,26 +839,20 @@ static void InfiniteWorld_EnumFiles(const cc_string* path, void* obj, int isDire
 	name.length -= extension.length;
 	if (!name.length || infiniteWorld_count >= Array_Elems(infiniteWorld_names)) return;
 	for (i = 0; i < infiniteWorld_count; i++) {
-		if (String_CaselessEquals(&infiniteWorld_names[i], &name)) return;
+		if (String_CaselessEquals(&infiniteWorld_paths[i], path)) return;
 	}
 	String_InitArray(infiniteWorld_names[infiniteWorld_count], infiniteWorld_nameBuffers[infiniteWorld_count]);
 	String_Copy(&infiniteWorld_names[infiniteWorld_count], &name);
+	infiniteWorld_names[infiniteWorld_count].buffer[infiniteWorld_names[infiniteWorld_count].length] = '\0';
+	String_InitArray(infiniteWorld_paths[infiniteWorld_count], infiniteWorld_pathBuffers[infiniteWorld_count]);
+	String_Copy(&infiniteWorld_paths[infiniteWorld_count], path);
 	infiniteWorld_count++;
 }
 static void InfiniteWorld_LoadEntries(void) {
-	static const cc_string folder = String_FromConst("maps/worlds");
-	static const cc_string legacy = String_FromConst("autosave (legacy)");
-	static const cc_string legacyPath = String_FromConst("maps/autosave.icw");
-	cc_filepath rawPath;
+	static const cc_string folder = String_FromConst("maps");
 	infiniteWorld_count = 0;
 	Utils_EnsureDirectory("maps/worlds");
 	Directory_Enum(&folder, NULL, InfiniteWorld_EnumFiles);
-	Platform_EncodePath(&rawPath, &legacyPath);
-	if (File_Exists(&rawPath) && infiniteWorld_count < Array_Elems(infiniteWorld_names)) {
-		String_InitArray(infiniteWorld_names[infiniteWorld_count], infiniteWorld_nameBuffers[infiniteWorld_count]);
-		String_Copy(&infiniteWorld_names[infiniteWorld_count], &legacy);
-		infiniteWorld_count++;
-	}
 }
 static void InfiniteWorld_Refresh(void) {
 	struct InfiniteWorldSelectScreen* s = &InfiniteWorldSelectScreen;
@@ -877,16 +871,7 @@ static void InfiniteWorld_Select(void* w) {
 		if (w != &s->worlds[i]) continue;
 		index = infiniteWorld_page * 5 + i;
 		if (index < infiniteWorld_count) {
-			cc_string path; char pathBuffer[FILENAME_SIZE];
-			String_InitArray(path, pathBuffer);
-			if (String_CaselessEqualsConst(&infiniteWorld_names[index], "autosave (legacy)")) {
-				String_AppendConst(&path, "maps/autosave.icw");
-			} else {
-				String_AppendConst(&path, "maps/worlds/");
-				String_AppendString(&path, &infiniteWorld_names[index]);
-				String_AppendConst(&path, ".icw");
-			}
-			WorldType_Start(true, &path);
+			WorldType_Start(true, &infiniteWorld_paths[index]);
 		}
 		return;
 	}
