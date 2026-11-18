@@ -41,6 +41,7 @@
 #include "SystemFonts.h"
 #include "Formats.h"
 #include "EntityRenderers.h"
+#include "Errors.h"
 
 struct _GameData Game;
 static cc_uint64 frameStart;
@@ -55,6 +56,47 @@ int     Game_FpsLimit, Game_Vertices;
 cc_bool Game_SimpleArmsAnim;
 static float gfx_minFrameMs;
 static cc_bool autoPause;
+
+static struct ScheduledTask2 InfiniteWorld_AutosaveTask;
+
+static cc_result Game_SaveInfiniteAutosave(void) {
+	static const cc_string path = String_FromConst("maps/autosave.icw");
+	cc_filepath rawPath;
+	struct Stream stream;
+	cc_result res;
+	if (!World.Infinite || !World.Loaded || !Server.IsSinglePlayer) return ERR_NOT_SUPPORTED;
+	Platform_EncodePath(&rawPath, &path);
+	res = Stream_CreatePath(&stream, &rawPath);
+	if (res) {
+		Logger_IOWarn2(res, "creating", &rawPath);
+		return res;
+	}
+	res = InfiniteWorld_Save(&stream);
+	if (res) {
+		stream.Close(&stream);
+		Logger_IOWarn2(res, "encoding", &rawPath);
+		return res;
+	}
+	res = stream.Close(&stream);
+	if (res) {
+		Logger_IOWarn2(res, "closing", &rawPath);
+		return res;
+	}
+	World.LastSave = Game.Time;
+	return 0;
+}
+
+static cc_bool Game_InfiniteWorldAutosave(struct ScheduledTask2* task) {
+	int interval;
+	(void)task;
+	if (!Options_GetBool("infinite-autosave", true)) return true;
+	if (!World.Infinite || !World.Loaded || !Server.IsSinglePlayer) return true;
+	interval = Options_GetInt("infinite-autosave-interval", 1, 60, 5);
+	if (World.LastSave < 0.0) World.LastSave = Game.Time;
+	if (Game.Time - World.LastSave < interval * 60.0) return true;
+	Game_SaveInfiniteAutosave();
+	return true;
+}
 
 cc_bool Game_ClassicMode, Game_ClassicHacks;
 cc_bool Game_AllowCustomBlocks;
@@ -411,6 +453,9 @@ static void Game_Load(void) {
 	LoadOptions();
 	GameVersion_Load();
 	Utils_EnsureDirectory("maps");
+	InfiniteWorld_AutosaveTask.interval = 10.0f;
+	InfiniteWorld_AutosaveTask.callback = Game_InfiniteWorldAutosave;
+	ScheduledTask2_Add(&InfiniteWorld_AutosaveTask);
 
 	Event_Register_(&WorldEvents.NewMap,           NULL, HandleOnNewMap);
 	Event_Register_(&WorldEvents.MapLoaded,        NULL, HandleOnNewMapLoaded);
@@ -845,6 +890,8 @@ void Game_RenderFrame(void) {
 }
 
 void Game_Free(void) {
+	/* Preserve the last position and edits when leaving an infinite world. */
+	if (Options_GetBool("infinite-autosave", true)) Game_SaveInfiniteAutosave();
 	struct IGameComponent* comp;
 	/* Most components will call OnContextLost in their Free functions */
 	/* Set to false so components will always free managed textures too */

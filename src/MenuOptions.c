@@ -1160,6 +1160,11 @@ static void MiO_SetSensitivity(int v) {
 	Options_SetInt(OPT_SENSITIVITY, v);
 }
 
+static cc_bool MiO_GetAutosave(void) { return Options_GetBool("infinite-autosave", true); }
+static void MiO_SetAutosave(cc_bool v) { Options_SetBool("infinite-autosave", v); }
+static int MiO_GetAutosaveInterval(void) { return Options_GetInt("infinite-autosave-interval", 1, 60, 5); }
+static void MiO_SetAutosaveInterval(int v) { Options_SetInt("infinite-autosave-interval", v); }
+
 static void MiscSettingsScreen_InitWidgets(struct MenuOptionsScreen* s) {
 	MenuOptionsScreen_BeginButtons(s);
 	{
@@ -1192,6 +1197,12 @@ static void MiscSettingsScreen_InitWidgets(struct MenuOptionsScreen* s) {
 			   1, 200, 30,
 #endif
 			MiO_GetSensitivity, MiO_SetSensitivity, NULL);
+		if (Server.IsSinglePlayer) {
+			MenuOptionsScreen_AddBool(s, "Infinite world autosave",
+				MiO_GetAutosave, MiO_SetAutosave, "Automatically saves infinite worlds to maps/autosave.icw.");
+			MenuOptionsScreen_AddInt(s, "Autosave interval (minutes)",
+				1, 60, 5, MiO_GetAutosaveInterval, MiO_SetAutosaveInterval, NULL);
+		}
 	}
 	MenuOptionsScreen_EndButtons(s, -1, Menu_SwitchOptions);
 
