@@ -18,7 +18,7 @@
 int Builder_SidesLevel, Builder_EdgeLevel;
 
 /* One-time infinite-world mesh diagnostics, written to client.log. */
-static cc_bool Builder_IWDiagCopyFailed, Builder_IWDiagAllAir;
+static cc_bool Builder_IWDiagEntered, Builder_IWDiagCopyFailed, Builder_IWDiagAllAir;
 static cc_bool Builder_IWDiagAllSolid, Builder_IWDiagNoFaces;
 static cc_bool Builder_IWDiagVbFailed, Builder_IWDiagBuilt;
 static void Builder_LogIWDiag(const char* message) {
@@ -428,6 +428,10 @@ cc_bool Builder_MakeChunk(struct ChunkInfo* info) {
 	int y1 = info->centreY - HALF_CHUNK_SIZE;
 	int z1 = info->centreZ - HALF_CHUNK_SIZE;
 
+	if (World.Infinite && !Builder_IWDiagEntered) {
+		Builder_IWDiagEntered = true;
+		Builder_LogIWDiag("InfiniteWorld mesh diagnostic: Builder_MakeChunk entered.");
+	}
 	Builder_Chunk  = chunk;
 	Builder_Counts = counts;
 	Builder_BitFlags = bitFlags;
