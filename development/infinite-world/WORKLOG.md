@@ -35,6 +35,7 @@ Scope: singleplayer infinite worlds. Finite worlds and existing .cw compatibilit
 - [ ] Further fixes, only if the remaining work uncovers a confirmed defect
 
 ### Build verification
+- [ ] Local Windows MSYS2 UCRT64 build succeeds using `build.bat`.
 - [ ] Existing Linux GL1/GL2 workflow succeeds for the current infinite-world source.
 
 ### Runtime verification
