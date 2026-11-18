@@ -611,6 +611,12 @@ static void InfiniteWorld_LruTouch(struct InfiniteWorld_Chunk* chunk) {
 }
 
 /* Rebuilds a dense chunk from its deterministic base terrain and sparse edits. */
+static cc_bool InfiniteWorld_DiagCreateAlloc, InfiniteWorld_DiagCreateGenerate;
+static void InfiniteWorld_LogCreateDiag(const char* message) {
+	cc_string msg = String_FromReadonly(message);
+	Logger_Log(&msg);
+}
+
 static cc_bool InfiniteWorld_CreateChunkData(int chunkX, int chunkZ,
 		const struct InfiniteWorld_ChunkEdit* edits, cc_uint32 editCount,
 		BlockRaw** blocksOut, BlockRaw** blocks2Out) {
@@ -620,9 +626,19 @@ static cc_bool InfiniteWorld_CreateChunkData(int chunkX, int chunkZ,
 	*blocksOut = NULL;
 	*blocks2Out = NULL;
 	blocks = (BlockRaw*)Mem_TryAlloc(INFINITE_WORLD_CHUNK_VOLUME, sizeof(BlockRaw));
-	if (!blocks) return false;
+	if (!blocks) {
+		if (!InfiniteWorld_DiagCreateAlloc) {
+			InfiniteWorld_DiagCreateAlloc = true;
+			InfiniteWorld_LogCreateDiag("InfiniteWorld mesh diagnostic: terrain block-array allocation failed.");
+		}
+		return false;
+	}
 	if (!InfiniteWorld_GenerateChunk(InfiniteWorld_Seed, chunkX, chunkZ, blocks)) {
 		Mem_Free(blocks);
+		if (!InfiniteWorld_DiagCreateGenerate) {
+			InfiniteWorld_DiagCreateGenerate = true;
+			InfiniteWorld_LogCreateDiag("InfiniteWorld mesh diagnostic: terrain generator rejected chunk coordinates.");
+		}
 		return false;
 	}
 #ifdef EXTENDED_BLOCKS
