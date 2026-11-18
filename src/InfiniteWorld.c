@@ -1013,8 +1013,9 @@ static struct InfiniteWorld_Chunk* InfiniteWorld_GetChunkInternal(int chunkX, in
 			InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkArrayGrowFailed, "InfiniteWorld mesh diagnostic: chunk-record capacity overflow.");
 			return NULL;
 		}
-		grown = (struct InfiniteWorld_Chunk*)Mem_TryRealloc(
-			InfiniteWorld_Chunks, (cc_uint32)capacity, sizeof(struct InfiniteWorld_Chunk));
+		grown = (struct InfiniteWorld_Chunk*)(InfiniteWorld_Chunks
+			? Mem_TryRealloc(InfiniteWorld_Chunks, (cc_uint32)capacity, sizeof(struct InfiniteWorld_Chunk))
+			: Mem_TryAlloc((cc_uint32)capacity, sizeof(struct InfiniteWorld_Chunk)));
 		if (!grown) {
 			InfiniteWorld_LogChunkStoreDiag(&InfiniteWorld_DiagChunkArrayGrowFailed, "InfiniteWorld mesh diagnostic: chunk-record array allocation failed.");
 			return NULL;
