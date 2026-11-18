@@ -134,6 +134,7 @@ static void SPConnection_BeginConnect(void) {
 		Options_SetBool("infinite-world", false);
 		Options_SaveIfChanged();
 	}
+	String_InitArray(selectedPath, selectedBuffer);
 	Options_Get("infinite-world-save", &selectedPath, "");
 	String_InitArray(SP_AutoloadMap, selectedBuffer);
 	String_Copy(&SP_AutoloadMap, &selectedPath);
