@@ -548,15 +548,15 @@ static void PauseScreen_Layout(void* screen) {
 	Menu_LayoutButtons(s->btns, s->descs, s->descsCount);
 	Menu_LayoutBack(&s->back);
 	Widget_SetLocation(&s->quit,  ANCHOR_MAX,    ANCHOR_MAX,    5,    5);
-	Widget_SetLocation(&s->title, ANCHOR_CENTRE, ANCHOR_CENTRE, 0, -145);
+	Widget_SetLocation(&s->title, ANCHOR_CENTRE, ANCHOR_CENTRE, 0, -180);
 }
 
 static void PauseScreen_Init(void* screen) {
 	struct PauseScreen* s = (struct PauseScreen*)screen;
 	static const struct SimpleButtonDesc descs[] = {
-		{ -160,  -60, "Options...",             Menu_SwitchOptions   },
-		{ -160,  -20, "Change texture pack...", Menu_SwitchTexPacks  },
-		{ -160,   20, "Hotkeys...",             Menu_SwitchHotkeys   },
+		{ -160,  -40, "Options...",             Menu_SwitchOptions   },
+		{ -160,    0, "Change texture pack...", Menu_SwitchTexPacks  },
+		{ -160,   40, "Hotkeys...",             Menu_SwitchHotkeys   },
 		{  160,  -40, "Generate new level...",  Menu_SwitchGenLevel  },
 		{  160,    0, "Load level...",          Menu_SwitchLoadLevel },
 		{  160,   40, "Save level...",          Menu_SwitchSaveLevel }
