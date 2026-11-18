@@ -48,6 +48,8 @@ int InfiniteWorld_ChunkCount(void);
 cc_result InfiniteWorld_CheckSave(void);
 cc_result InfiniteWorld_Save(struct Stream* stream);
 cc_result InfiniteWorld_Load(struct Stream* stream);
+/* Applies saved ICW3 player state after Map_LoadFrom performs spawn handling. */
+void InfiniteWorld_ApplyPlayerState(void);
 
 
 CC_END_HEADER

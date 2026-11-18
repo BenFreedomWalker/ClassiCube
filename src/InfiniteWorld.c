@@ -10,6 +10,10 @@
 #include "Game.h"
 #include "Constants.h"
 
+/* ICW3 player state is applied after the map loader's default spawn step. */
+static cc_bool InfiniteWorld_PlayerStatePending;
+static float InfiniteWorld_PlayerState[5];
+
 /* Integer-only value noise keeps terrain identical across platforms and visits.
    Coordinates are absolute block coordinates, not relative to the loaded area.
 */
@@ -1397,8 +1401,8 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	struct InfiniteWorld_State staged = { 0 };
 	struct InfiniteWorld_State* previous;
 	cc_uint8 header[16], coords[8], upper[INFINITE_WORLD_CHUNK_VOLUME], player[24];
-	struct LocationUpdate playerUpdate;
 	float playerValues[5];
+	InfiniteWorld_PlayerStatePending = false;
 	int i;
 	cc_bool version2, version3;
 	cc_uint32 count, n, position, length, bits;
@@ -1520,34 +1524,45 @@ cc_result InfiniteWorld_Load(struct Stream* stream) {
 	*previous = staged;
 	World_RaiseMapLoaded();
 	if (version3) {
-		playerUpdate.flags = LU_HAS_POS | LU_HAS_PITCH | LU_HAS_YAW;
-		playerUpdate.pos.x = playerValues[0];
-		playerUpdate.pos.y = playerValues[1];
-		playerUpdate.pos.z = playerValues[2];
-		playerUpdate.pitch = playerValues[3];
-		playerUpdate.yaw = playerValues[4];
-		{
-			struct LocalPlayer* player = Entities.CurPlayer;
-			struct Entity* e = &player->Base;
-			e->VTABLE->SetLocation(e, &playerUpdate);
-			/* Keep all local interpolation states aligned so the next tick
-			   cannot interpolate back to the map's default spawn point. */
-			e->prev.pos = playerUpdate.pos;
-			e->next.pos = playerUpdate.pos;
-			e->Position = playerUpdate.pos;
-			e->prev.pitch = e->next.pitch = playerValues[3];
-			e->prev.yaw = e->next.yaw = playerValues[4];
-			e->Pitch = playerValues[3];
-			e->Yaw = playerValues[4];
-			player->Spawn = playerUpdate.pos;
-			player->SpawnPitch = playerValues[3];
-			player->SpawnYaw = playerValues[4];
-		}
+		for (i = 0; i < 5; i++) InfiniteWorld_PlayerState[i] = playerValues[i];
+		InfiniteWorld_PlayerStatePending = true;
 	}
 	return 0;
 
 failed:
+	InfiniteWorld_PlayerStatePending = false;
 	InfiniteWorld_Reset();
 	InfiniteWorld_Current = previous;
 	return res;
+}
+
+/* Map_LoadFrom calls LocalPlayers_MoveToSpawn after the importer returns.
+   Apply ICW3's saved state afterwards so that default spawn cannot overwrite it. */
+void InfiniteWorld_ApplyPlayerState(void) {
+	struct LocalPlayer* player;
+	struct Entity* e;
+	struct LocationUpdate update;
+	if (!InfiniteWorld_PlayerStatePending) return;
+	InfiniteWorld_PlayerStatePending = false;
+
+	player = Entities.CurPlayer;
+	e = &player->Base;
+	update.flags = LU_HAS_POS | LU_HAS_PITCH | LU_HAS_YAW;
+	update.pos.x = InfiniteWorld_PlayerState[0];
+	update.pos.y = InfiniteWorld_PlayerState[1];
+	update.pos.z = InfiniteWorld_PlayerState[2];
+	update.pitch = InfiniteWorld_PlayerState[3];
+	update.yaw = InfiniteWorld_PlayerState[4];
+	e->VTABLE->SetLocation(e, &update);
+	/* Keep all interpolation states aligned to prevent a snap to spawn. */
+	e->prev.pos = update.pos;
+	e->next.pos = update.pos;
+	e->Position = update.pos;
+	e->prev.pitch = e->next.pitch = update.pitch;
+	e->prev.yaw = e->next.yaw = update.yaw;
+	e->Pitch = update.pitch;
+	e->Yaw = update.yaw;
+	player->Spawn = update.pos;
+	player->SpawnPitch = update.pitch;
+	player->SpawnYaw = update.yaw;
 }

@@ -100,6 +100,7 @@ cc_result Map_LoadFrom(const cc_string* path) {
 
 	if (!World.Infinite) World_SetNewMap(World.Blocks, World.Width, World.Height, World.Length);
 	LocalPlayers_MoveToSpawn(&update);
+	InfiniteWorld_ApplyPlayerState();
 	relPath = *path;
 	Utils_UNSAFE_GetFilename(&relPath);
 	String_UNSAFE_Separate(&relPath, '.', &fileName, &fileExt);
